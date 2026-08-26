@@ -35,10 +35,10 @@ export const useWatchProgress = (
         if (typeof window !== "undefined" && sessionStorage.getItem(sessionKey)) return;
 
         try {
-            let deviceId = localStorage.getItem("lofilm_device_id");
+            let deviceId = localStorage.getItem("cinestream_device_id");
             if (!deviceId) {
                 deviceId = "dev-" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-                localStorage.setItem("lofilm_device_id", deviceId);
+                localStorage.setItem("cinestream_device_id", deviceId);
             }
 
             let ip = "unknown";
@@ -79,7 +79,7 @@ export const useWatchProgress = (
             if (timeDiff >= 10) {
                 lastSavedTime.current = currentTime;
                 try {
-                    const HISTORY_KEY = currentUser ? `lofilm-watch-history-${currentUser.id}` : "lofilm-guest-watch-history";
+                    const HISTORY_KEY = currentUser ? `cinestream-watch-history-${currentUser.id}` : "cinestream-guest-watch-history";
                     const historyStr = localStorage.getItem(HISTORY_KEY);
                     const history = historyStr ? JSON.parse(historyStr) : {};
 

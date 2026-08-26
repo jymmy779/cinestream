@@ -137,7 +137,7 @@ export default function TopicsClient({ initialTopics }: { initialTopics?: TopicI
                 <div className="flex flex-col items-center mb-10 mt-6">
                     <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 text-center">Chủ Đề Phim</h1>
                     <p className="text-white/60 text-sm md:text-base text-center max-w-2xl">
-                        Khám phá các bộ sưu tập và chủ đề phim đang được quan tâm trên LoFilm.
+                        Khám phá các bộ sưu tập và chủ đề phim đang được quan tâm trên CineStream.
                     </p>
                 </div>
 

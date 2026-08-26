@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import { getAbsoluteUrl } from '@/app/config/site';
 
 export const metadata: Metadata = {
-  title: 'Điều Khoản Sử Dụng | LoFilm',
-  description: 'Xem các điều khoản và quy định chung khi sử dụng dịch vụ xem phim miễn phí do LoFilm cung cấp.',
+  title: 'Điều Khoản Sử Dụng | CineStream',
+  description: 'Xem các điều khoản và quy định chung khi sử dụng dịch vụ xem phim miễn phí do CineStream cung cấp.',
   alternates: {
     canonical: getAbsoluteUrl('/dieu-khoan-su-dung'),
   },
@@ -22,7 +22,7 @@ export default function TermsOfService() {
               Chấp nhận điều khoản
             </h2>
             <p className="leading-relaxed text-xs md:text-sm opacity-60">
-              Việc bạn tiếp tục sử dụng website LoFilm đồng nghĩa với việc bạn đồng ý với các điều khoản dưới đây. Nếu không đồng ý, vui lòng ngừng sử dụng dịch vụ.
+              Việc bạn tiếp tục sử dụng website CineStream đồng nghĩa với việc bạn đồng ý với các điều khoản dưới đây. Nếu không đồng ý, vui lòng ngừng sử dụng dịch vụ.
             </p>
           </section>
 
@@ -31,7 +31,7 @@ export default function TermsOfService() {
               Quyền sở hữu nội dung
             </h2>
             <p className="leading-relaxed text-xs md:text-sm opacity-60">
-              Tất cả nội dung video, hình ảnh và thông tin trên LoFilm được tổng hợp từ các nguồn API và dịch vụ lưu trữ của bên thứ ba. LoFilm không sở hữu, không trực tiếp lưu trữ bất kỳ tệp tin đa phương tiện nào trên máy chủ của mình. Mọi vấn đề liên quan đến bản quyền, vui lòng liên hệ trực tiếp với các đơn vị cung cấp hoặc nguồn phát gốc.
+              Tất cả nội dung video, hình ảnh và thông tin trên CineStream được tổng hợp từ các nguồn API và dịch vụ lưu trữ của bên thứ ba. CineStream không sở hữu, không trực tiếp lưu trữ bất kỳ tệp tin đa phương tiện nào trên máy chủ của mình. Mọi vấn đề liên quan đến bản quyền, vui lòng liên hệ trực tiếp với các đơn vị cung cấp hoặc nguồn phát gốc.
             </p>
           </section>
 
@@ -61,12 +61,12 @@ export default function TermsOfService() {
               Miễn trừ trách nhiệm
             </h2>
             <p className="leading-relaxed text-xs md:text-sm opacity-60">
-              LoFilm cung cấp dịch vụ "Nguyên trạng" và không chịu trách nhiệm về tính chính xác, tính pháp lý hoặc tính lành mạnh của nội dung do API bên thứ ba cung cấp. Chúng tôi cũng không chịu trách nhiệm đối với bất kỳ thiệt hại trực tiếp hoặc gián tiếp nào phát sinh từ việc sử dụng nội dung trên website, bao gồm nhưng không giới hạn ở các liên kết hoặc nội dung từ các đối tác quảng cáo.
+              CineStream cung cấp dịch vụ "Nguyên trạng" và không chịu trách nhiệm về tính chính xác, tính pháp lý hoặc tính lành mạnh của nội dung do API bên thứ ba cung cấp. Chúng tôi cũng không chịu trách nhiệm đối với bất kỳ thiệt hại trực tiếp hoặc gián tiếp nào phát sinh từ việc sử dụng nội dung trên website, bao gồm nhưng không giới hạn ở các liên kết hoặc nội dung từ các đối tác quảng cáo.
             </p>
           </section>
 
           <section className="bg-white/5 p-5 md:p-6 rounded-xl md:rounded-2xl border border-white/5 italic">
-            <p className="text-[10px] md:text-xs opacity-40">LoFilm có quyền thay đổi các điều khoản này bất kỳ lúc nào mà không cần thông báo trước. Cập nhật cuối cùng vào ngày {new Date().toLocaleDateString('vi-VN')}.</p>
+            <p className="text-[10px] md:text-xs opacity-40">CineStream có quyền thay đổi các điều khoản này bất kỳ lúc nào mà không cần thông báo trước. Cập nhật cuối cùng vào ngày {new Date().toLocaleDateString('vi-VN')}.</p>
           </section>
         </div>
       </div>

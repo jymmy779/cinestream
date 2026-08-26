@@ -98,7 +98,7 @@ export async function middleware(request: NextRequest) {
     if (pathname === '/admin/login') {
       return NextResponse.next();
     }
-    const adminToken = request.cookies.get('lofilm_admin_token')?.value;
+    const adminToken = request.cookies.get('cinestream_admin_token')?.value;
     if (adminToken !== process.env.ADMIN_PASSWORD) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }

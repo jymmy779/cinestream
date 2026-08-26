@@ -277,7 +277,7 @@ export default function AuthContent() {
                       {isLogin ? "Chào mừng trở lại!" : "Tạo tài khoản mới"}
                     </h2>
                     <p className="text-white/40 text-xs md:text-sm">
-                      {isLogin ? "Cùng LoFilm tiếp tục cuộc hành trình điện ảnh của bạn." : "Trở thành thành viên và khám phá kho phim khổng lồ."}
+                      {isLogin ? "Cùng CineStream tiếp tục cuộc hành trình điện ảnh của bạn." : "Trở thành thành viên và khám phá kho phim khổng lồ."}
                     </p>
                   </div>
 

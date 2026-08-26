@@ -46,7 +46,7 @@ export default function SettingsTab({
     <div className="rounded-2xl bg-zinc-900/80 border border-white/10 p-6 space-y-6 shadow-xl">
       <div className="space-y-10">
         <div className="border-b border-white/5 pb-6">
-          <h1 className="text-2xl text-white tracking-tighter uppercase font-bold italic">Cài đặt LoFilm+</h1>
+          <h1 className="text-2xl text-white tracking-tighter uppercase font-bold italic">Cài đặt CineStream+</h1>
           <p className="text-white/40 text-sm mt-1">Quản trị các tùy chọn cá nhân và bảo mật tài khoản.</p>
         </div>
 

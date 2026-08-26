@@ -53,7 +53,7 @@ export default function MovieDetailClient({
     initialActors
 }: MovieDetailClientProps) {
     const [movie, setMovie] = useState<Movie>(initialMovie);
-    const SERVER_PREF_KEY = `lofilm-server:${slug}`;
+    const SERVER_PREF_KEY = `cinestream-server:${slug}`;
     const [activeServerIndex, setActiveServerIndex] = useState(0);
     const [suggestedMoviesState, setSuggestedMoviesState] = useState<Movie[]>(suggestedMovies);
     const filteredSuggestions = useMemo(() => filterDuplicateMovies(suggestedMoviesState), [suggestedMoviesState]);
@@ -506,7 +506,7 @@ export default function MovieDetailClient({
                                         {/* Left 2 Cols: Synopsis Story */}
                                         <div className="lg:col-span-2 space-y-3">
                                             <p className="text-white/75 text-sm sm:text-base leading-relaxed">
-                                                {cleanContent(movie.content) || "Bộ phim hấp dẫn đang được phát sóng với chất lượng cao trên LoFilm..."}
+                                                {cleanContent(movie.content) || "Bộ phim hấp dẫn đang được phát sóng với chất lượng cao trên CineStream..."}
                                             </p>
                                         </div>
 
@@ -706,7 +706,7 @@ export default function MovieDetailClient({
                 isOpen={showShareModal}
                 onClose={() => setShowShareModal(false)}
                 movieName={movie.name}
-                shareUrl={typeof window !== "undefined" ? window.location.href : `https://lofilm.fun/phim/${movie.slug}`}
+                shareUrl={typeof window !== "undefined" ? window.location.href : `/phim/${movie.slug}`}
             />
         </div>
     );

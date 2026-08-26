@@ -227,7 +227,7 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
                             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-fuchsia-500/20 to-purple-600/20 border border-fuchsia-500/30 rounded-xl text-[11px] text-fuchsia-400 hover:from-fuchsia-500/30 hover:to-purple-600/30 transition-all font-bold cursor-pointer"
                         >
                             <Crown size={14} className="animate-pulse" />
-                            NÂNG CẤP LOFILM PREMIUM
+                            NÂNG CẤP CINESTREAM PREMIUM
                         </button>
                     </div>
 
@@ -249,7 +249,7 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
                 <ComingSoonModal
                     isOpen={showPremiumModal}
                     onClose={() => setShowPremiumModal(false)}
-                    title="LOFILM Premium"
+                    title="CINESTREAM Premium"
                     message="Dịch vụ nâng cấp Premium đang được triển khai"
                 />
             </>
@@ -335,7 +335,7 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
             <ComingSoonModal
                 isOpen={showPremiumModal}
                 onClose={() => setShowPremiumModal(false)}
-                title="LOFILM Premium"
+                title="CINESTREAM Premium"
                 message="Thực ra không có dịch vụ Premium nào cả đâuuu"
             />
         </div>

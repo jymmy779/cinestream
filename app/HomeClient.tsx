@@ -33,7 +33,7 @@ export default function HomeClient({ prefetched, activeEvent, initialTopics }: {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('status') === 'verified') {
-            toast.success("Xác thực thành công! Chào mừng bạn đến với thế giới điện ảnh LoFilm! ✨🎬", {
+            toast.success("Xác thực thành công! Chào mừng bạn đến với thế giới điện ảnh CineStream! ✨🎬", {
                 duration: 5000,
                 icon: '🎬',
                 style: {
@@ -49,7 +49,7 @@ export default function HomeClient({ prefetched, activeEvent, initialTopics }: {
 
     return (
         <>
-            <h1 className="sr-only">LoFilm - Xem Phim Online Chất Lượng Cao 4K, Vietsub Miễn Phí</h1>
+            <h1 className="sr-only">CineStream - Xem Phim Online Chất Lượng Cao 4K, Vietsub Miễn Phí</h1>
             <HeroSlider initialMovies={prefetched.hero} />
 
             <div className="flex flex-col gap-6 md:gap-[50px] pb-20">
@@ -154,7 +154,7 @@ export default function HomeClient({ prefetched, activeEvent, initialTopics }: {
                 </LazyRow>
 
                 {/* 10. Editor's Choice */}
-                <LazyRow id="lofilm-nominated" estimatedHeight="460px" skeleton={<EditorChoiceRowSkeleton />}>
+                <LazyRow id="cinestream-nominated" estimatedHeight="460px" skeleton={<EditorChoiceRowSkeleton />}>
                     <EditorChoiceRow
                         title="Editor's Choice"
                         viewAllLink="/danh-sach/phim-moi-cap-nhat"

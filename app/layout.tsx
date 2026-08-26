@@ -53,18 +53,18 @@ import { SITE_URL, getAbsoluteUrl } from "./config/site";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "LoFilm - Xem Phim Online Chất Lượng Cao | Phim 4K Vietsub Miễn Phí",
-    template: "%s | LoFilm"
+    default: "CineStream - Xem Phim Online Chất Lượng Cao | Phim 4K Vietsub Miễn Phí",
+    template: "%s | CineStream"
   },
-  description: "LoFilm - Trang xem phim online chất lượng cao 4K, Vietsub, thuyết minh hoàn toàn miễn phí. Kho phim lẻ, phim bộ, anime, phim chiếu rạp mới nhất 2025-2026. Trải nghiệm xem phim LoFilm không quảng cáo, tốc độ tải cực nhanh, giao diện hiện đại.",
-  applicationName: 'LoFilm',
-  authors: [{ name: 'LoFilm Team' }],
+  description: "CineStream - Trang xem phim online chất lượng cao 4K, Vietsub, thuyết minh hoàn toàn miễn phí. Kho phim lẻ, phim bộ, anime, phim chiếu rạp mới nhất 2025-2026. Trải nghiệm xem phim CineStream không quảng cáo, tốc độ tải cực nhanh, giao diện hiện đại.",
+  applicationName: 'CineStream',
+  authors: [{ name: 'CineStream Team' }],
   generator: 'Next.js',
   manifest: '/manifest.json',
   keywords: [
-    "LoFilm", "lofilm", "lo film", "lofilmtv", "lofilm net", "lofilm me", "lofilm chill", "lofilm phim",
-    "xem phim lofilm", "xem phim lo film", "trang phim lofilm", "web phim lofilm", "lofilm xem phim",
-    "lofilm phim hay", "lofilm vietsub", "lofilm 4k", "phim moi", "phim hay 2026", "xem phim online",
+    "CineStream", "cinestream", "cine stream", "cinestreamtv", "cinestream net", "cinestream me", "cinestream chill", "cinestream phim",
+    "xem phim cinestream", "xem phim cine stream", "trang phim cinestream", "web phim cinestream", "cinestream xem phim",
+    "cinestream phim hay", "cinestream vietsub", "cinestream 4k", "phim moi", "phim hay 2026", "xem phim online",
     "phim vietsub", "phim bo moi", "phim le hay", "phim chieu rap", "phim thuyet minh", "phim long tieng",
     "xem phim hd", "phim online mien phi", "phim nhanh", "phim khong quang cao", "kho phim hay",
     "phim hanh dong", "phim tinh cam", "phim hai", "phim co trang", "phim ma", "phim kinh di",
@@ -73,8 +73,8 @@ export const metadata: Metadata = {
     "phim 1080p", "phim bluray", "phim netflix", "phim hulu", "phim disney", "phim hay moi ngay"
   ],
   referrer: 'origin-when-cross-origin',
-  creator: 'LoFilm',
-  publisher: 'LoFilm',
+  creator: 'CineStream',
+  publisher: 'CineStream',
   formatDetection: {
     email: false,
     address: false,
@@ -83,7 +83,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'LoFilm',
+    title: 'CineStream',
   },
   icons: {
     icon: [
@@ -110,24 +110,24 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "LoFilm - Kho Phim Giải Trí Đỉnh Cao , Xem Phim Online 4K , Vietsub",
-    description: "Trải nghiệm xem phim chất lượng cao 4K, Vietsub, thuyết minh hoàn toàn miễn phí tại LoFilm. Kho phim mới cập nhật mỗi ngày, không quảng cáo khó chịu.",
+    title: "CineStream - Kho Phim Giải Trí Đỉnh Cao , Xem Phim Online 4K , Vietsub",
+    description: "Trải nghiệm xem phim chất lượng cao 4K, Vietsub, thuyết minh hoàn toàn miễn phí tại CineStream. Kho phim mới cập nhật mỗi ngày, không quảng cáo khó chịu.",
     url: SITE_URL,
-    siteName: "LoFilm",
+    siteName: "CineStream",
     locale: "vi_VN",
     type: "website",
     images: [{
-      url: getAbsoluteUrl('/images/lofilm_logo.webp'),
+      url: getAbsoluteUrl('/images/hero.webp'),
       width: 1200,
       height: 630,
-      alt: "LoFilm - Xem Phim Online Chất Lượng Cao",
+      alt: "CineStream - Xem Phim Online Chất Lượng Cao",
     }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'LoFilm - Xem Phim Online Chất Lượng Cao',
-    description: 'Xem phim LoFilm miễn phí, chất lượng 4K, Vietsub. Kho phim mới cập nhật mỗi ngày.',
-    images: [getAbsoluteUrl('/images/lofilm_logo.webp')],
+    title: 'CineStream - Xem Phim Online Chất Lượng Cao',
+    description: 'Xem phim CineStream miễn phí, chất lượng 4K, Vietsub. Kho phim mới cập nhật mỗi ngày.',
+    images: [getAbsoluteUrl('/images/hero.webp')],
   },
   alternates: {
     canonical: SITE_URL,
@@ -174,8 +174,8 @@ export default async function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebSite",
-              "name": "LoFilm",
-              "alternateName": ["Lo Film", "LoFilm TV", "Xem Phim LoFilm", "Phim LoFilm", "LoFilm Net"],
+              "name": "CineStream",
+              "alternateName": ["Cine Stream", "CineStream TV", "Xem Phim CineStream", "Phim CineStream", "CineStream Net"],
               "url": SITE_URL,
               "potentialAction": {
                 "@type": "SearchAction",
@@ -194,7 +194,7 @@ export default async function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
-              "name": "LoFilm",
+              "name": "CineStream",
               "url": SITE_URL,
               "logo": {
                 "@type": "ImageObject",
@@ -207,10 +207,7 @@ export default async function RootLayout({
                 "contactType": "customer service",
                 "availableLanguage": ["Vietnamese", "English"]
               },
-              "sameAs": [
-                "https://t.me/ponpornsec",
-                "https://t.me/+5S1xkPn1SCAxZWZl"
-              ]
+              "sameAs": []
             })
           }}
         />

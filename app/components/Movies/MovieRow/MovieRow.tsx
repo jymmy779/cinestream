@@ -70,7 +70,7 @@ function getHubMeta(viewAllLink: string, title: string) {
         flag: "🎬",
         tag: "CINEMA HUB",
         sub: "Phim chọn lọc thịnh hành",
-        watermark: "LOFILM",
+        watermark: "CINESTREAM",
         gradient: "from-purple-950/80 via-indigo-950/40 to-[#0F1115]",
         accentBorder: "border-purple-500/30",
         accentBadge: "bg-purple-500/20 text-purple-300 border-purple-500/30",

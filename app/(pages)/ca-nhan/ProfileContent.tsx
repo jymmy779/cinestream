@@ -98,7 +98,7 @@ export default function ProfileContent() {
         .limit(40);
       if (!error && data) combinedHistory = data;
       try {
-        const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+        const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
         const localDataStr = localStorage.getItem(HISTORY_KEY);
         if (localDataStr) {
           const localHistory = JSON.parse(localDataStr);
@@ -224,7 +224,7 @@ export default function ProfileContent() {
 
         if (isLocal) {
           try {
-            const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+            const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
             const localDataStr = localStorage.getItem(HISTORY_KEY);
             if (localDataStr) {
               const history = JSON.parse(localDataStr);
@@ -245,7 +245,7 @@ export default function ProfileContent() {
           if (!error) {
             setWatchHistory((prev: any[]) => prev.filter((item: any) => item.movie_slug !== itemToDelete.movie_slug));
             try {
-              const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+              const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
               const localDataStr = localStorage.getItem(HISTORY_KEY);
               if (localDataStr) {
                 const history = JSON.parse(localDataStr);
@@ -275,7 +275,7 @@ export default function ProfileContent() {
         const { error } = await supabase.from('watch_history').delete().eq('user_id', user.id);
         if (!error) {
           setWatchHistory([]);
-          localStorage.removeItem(`lofilm-watch-history-${user.id}`);
+          localStorage.removeItem(`cinestream-watch-history-${user.id}`);
           toast.success("Đã xóa toàn bộ lịch sử");
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
@@ -950,7 +950,7 @@ export default function ProfileContent() {
       <ComingSoonModal
         isOpen={showPremiumModal}
         onClose={() => setShowPremiumModal(false)}
-        title="LOFILM Premium"
+        title="CINESTREAM Premium"
         message="Thực ra không có dịch vụ Premium nào cả đâuuu"
       />
 

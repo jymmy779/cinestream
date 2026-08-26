@@ -9,12 +9,12 @@ import { INTERNAL_API_URL } from "@/app/utils/apiConfig";
 export const revalidate = 300; // Đồng bộ 300 giây (5 phút) toàn hệ thống
 
 export const metadata: Metadata = {
-    title: "Phim Bộ Mới Nhất 2026 | LoFilm - Xem Phim Bộ Vietsub Chất Lượng Cao",
-    description: "Tổng hợp các bộ phim dài tập, phim bộ hot nhất từ Trung Quốc, Hàn Quốc, Âu Mỹ mới nhất được cập nhật liên tục mỗi ngày trên LoFilm. Xem phim bộ vietsub, thuyết minh 4K miễn phí.",
+    title: "Phim Bộ Mới Nhất 2026 | CineStream - Xem Phim Bộ Vietsub Chất Lượng Cao",
+    description: "Tổng hợp các bộ phim dài tập, phim bộ hot nhất từ Trung Quốc, Hàn Quốc, Âu Mỹ mới nhất được cập nhật liên tục mỗi ngày trên CineStream. Xem phim bộ vietsub, thuyết minh 4K miễn phí.",
     keywords: [
         "phim bo", "phim bo moi", "phim bo hay", "phim bo vietsub",
         "phim bo trung quoc", "phim bo han quoc", "phim bo au my",
-        "xem phim bo online", "lofilm phim bo", "phim bo 2026", "phim bo 4k"
+        "xem phim bo online", "cinestream phim bo", "phim bo 2026", "phim bo 4k"
     ],
     alternates: {
         canonical: getAbsoluteUrl('/danh-sach/phim-bo'),

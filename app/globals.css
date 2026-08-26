@@ -762,7 +762,7 @@ body.theater-mode footer:hover {
    ========================================================================== */
 
 /* Shared Overlay Base */
-.lofilm-loader-overlay,
+.cinestream-loader-overlay,
 .reunification-loader {
   position: fixed;
   top: 0;
@@ -788,7 +788,7 @@ body.theater-mode footer:hover {
   overflow: hidden !important;
 }
 
-.lofilm-loader-overlay.fade-out,
+.cinestream-loader-overlay.fade-out,
 .reunification-loader.fade-out {
   opacity: 0;
   visibility: hidden;
@@ -819,11 +819,11 @@ body.theater-mode footer:hover {
 }
 
 /* Initial Loader Details */
-.lofilm-loader-overlay {
+.cinestream-loader-overlay {
   background: #0F1115;
 }
 
-.lofilm-loader-content {
+.cinestream-loader-content {
   position: relative;
   z-index: 10;
   display: flex;
@@ -832,7 +832,7 @@ body.theater-mode footer:hover {
   gap: 20px;
 }
 
-.lofilm-loader-text {
+.cinestream-loader-text {
   font-size: 2.2rem;
   font-weight: 800;
   letter-spacing: 0.2em;
@@ -842,12 +842,12 @@ body.theater-mode footer:hover {
 }
 
 @media (min-width: 768px) {
-  .lofilm-loader-text {
+  .cinestream-loader-text {
     font-size: 4rem;
   }
 }
 
-.lofilm-loader-bar-container {
+.cinestream-loader-bar-container {
   width: 140px;
   height: 3px;
   background: rgba(255, 255, 255, 0.05);
@@ -857,7 +857,7 @@ body.theater-mode footer:hover {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-.lofilm-loader-bar-fill {
+.cinestream-loader-bar-fill {
   position: absolute;
   inset: 0;
   width: 40%;
@@ -1108,7 +1108,7 @@ body.theater-mode footer:hover {
   }
 }
 
-.lofilm-loader-logo {
+.cinestream-loader-logo {
   width: 180px;
   max-width: 80vw;
   height: auto;
@@ -1118,7 +1118,7 @@ body.theater-mode footer:hover {
 }
 
 @media (min-width: 768px) {
-  .lofilm-loader-logo {
+  .cinestream-loader-logo {
     width: 260px;
   }
 }

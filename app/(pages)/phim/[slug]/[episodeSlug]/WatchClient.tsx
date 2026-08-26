@@ -217,7 +217,7 @@ export default function WatchClient({
     const setIsTheaterMode = (val: boolean) => { if (val !== settings.theaterMode) settings.toggleTheaterMode(); };
     const setIsAutoNext = (val: boolean) => { if (val !== settings.autoNext) settings.toggleAutoNext(); };
     // Persist server selection per movie slug (survives episode navigation within same movie)
-    const SERVER_PREF_KEY = `lofilm-server:${slug}`;
+    const SERVER_PREF_KEY = `cinestream-server:${slug}`;
     const [activeServerIndex, setActiveServerIndex] = useState(() => {
         if (typeof window === 'undefined') return 0;
         try {
@@ -667,7 +667,7 @@ export default function WatchClient({
 
                 if (startFrom <= 10) {
                     try {
-                        const HISTORY_KEY = currentUser ? `lofilm-watch-history-${currentUser.id}` : 'lofilm-guest-watch-history';
+                        const HISTORY_KEY = currentUser ? `cinestream-watch-history-${currentUser.id}` : 'cinestream-guest-watch-history';
                         const historyStr = localStorage.getItem(HISTORY_KEY);
                         if (historyStr) {
                             const history = JSON.parse(historyStr);

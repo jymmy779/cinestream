@@ -9,12 +9,12 @@ import { INTERNAL_API_URL } from "@/app/utils/apiConfig";
 export const revalidate = 300; // Đồng bộ 300 giây (5 phút) toàn hệ thống
 
 export const metadata: Metadata = {
-    title: "TV Shows & Gameshow Hot Nhất | LoFilm - Xem Online Miễn Phí",
-    description: "Khám phá các chương trình truyền hình, TV shows, gameshow nổi tiếng nhất, cập nhật liên tục mỗi ngày trên LoFilm. Xem vietsub, thuyết minh 4K hoàn toàn miễn phí.",
+    title: "TV Shows & Gameshow Hot Nhất | CineStream - Xem Online Miễn Phí",
+    description: "Khám phá các chương trình truyền hình, TV shows, gameshow nổi tiếng nhất, cập nhật liên tục mỗi ngày trên CineStream. Xem vietsub, thuyết minh 4K hoàn toàn miễn phí.",
     keywords: [
         "tv shows", "gameshow", "chuong trinh truyen hinh", "tv show han quoc",
         "running man", "variety show", "reality show", "xem tv show online",
-        "lofilm tv shows", "tv shows vietsub", "gameshow vietsub"
+        "cinestream tv shows", "tv shows vietsub", "gameshow vietsub"
     ],
     alternates: {
         canonical: getAbsoluteUrl('/danh-sach/tv-shows'),

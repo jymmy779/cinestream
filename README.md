@@ -1,6 +1,6 @@
-# LoFilm — Portfolio Edition
+# CineStream — Portfolio Edition
 
-This repository is a sanitized portfolio edition of LoFilm, a full-stack movie discovery and streaming interface built with Next.js and React.
+This repository is a sanitized portfolio edition of CineStream, a full-stack movie discovery and streaming interface built with Next.js and React.
 
 The production product served **1,000+ monthly users**. That figure refers to the private production deployment, not this public demo. Production infrastructure, credentials, deployment automation, ingestion services, private media sources, analytics identifiers, and operational admin tools are intentionally excluded.
 

@@ -100,7 +100,7 @@ const MovieInfo = ({ slug, movie, episode }: MovieInfoProps) => {
         </div>
 
         <p className="text-sm sm:text-base text-white/75 leading-relaxed">
-          {cleanedContent || "Bộ phim hấp dẫn đang được phát sóng với chất lượng cao trên LoFilm..."}
+          {cleanedContent || "Bộ phim hấp dẫn đang được phát sóng với chất lượng cao trên CineStream..."}
         </p>
       </div>
     </div>

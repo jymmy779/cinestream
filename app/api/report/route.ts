@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   const escape = (s: string) => s.toString().replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
 
   const lines = [
-    `🚨 *BÁO LỖI PHIM \\- LOFILM PRO*`,
+    `🚨 *BÁO LỖI PHIM \\- CINESTREAM PRO*`,
     ``,
     `🎬 *Phim:* ${escape(movieName)}`,
     episodeName ? `📺 *Tập:* ${escape(episodeName)}` : null,

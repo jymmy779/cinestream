@@ -48,7 +48,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const movie = detail?.movie;
 
     if (!movie) {
-        return { title: "Xem phim - LoFilm" };
+        return { title: "Xem phim - CineStream" };
     }
 
     // Lấy tập phim hiện tại trực tiếp từ URL (không cần parse array để tăng tốc tối đa Bước 1)
@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const cleanDescription = (movie.content || "").replace(/<[^>]*>/g, '').substring(0, 155);
     const description = cleanDescription
         ? `${cleanDescription}...`
-        : `Xem phim ${movie.name} (${movie.origin_name})${currentEpisodeName} vietsub, thuyết minh chất lượng HD tại LoFilm. Miễn phí, không quảng cáo.`;
+        : `Xem phim ${movie.name} (${movie.origin_name})${currentEpisodeName} vietsub, thuyết minh chất lượng HD tại CineStream. Miễn phí, không quảng cáo.`;
 
     const keywords = [
         movie.name,
@@ -75,10 +75,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         `${movie.name} vietsub`,
         `${movie.name} thuyet minh`,
         `${movie.name} full hd`,
-        `xem ${movie.name} lofilm`,
+        `xem ${movie.name} cinestream`,
         ...(movie.category?.map((c: any) => c.name) || []),
         ...(movie.actor?.slice(0, 5) || []),
-        "lofilm", "xem phim online mien phi", "phim hay 2026"
+        "cinestream", "xem phim online mien phi", "phim hay 2026"
     ].filter(Boolean);
 
     return {
@@ -92,14 +92,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             title,
             description,
             url: getAbsoluteUrl(`/phim/${slug}/${episodeSlug}`),
-            siteName: 'LoFilm',
+            siteName: 'CineStream',
             locale: 'vi_VN',
             type: 'video.movie',
             images: [{
                 url: movie.poster_url || movie.thumb_url,
                 width: 1200,
                 height: 675,
-                alt: `${movie.name} - LoFilm`,
+                alt: `${movie.name} - CineStream`,
             }],
         },
         twitter: {
@@ -138,7 +138,7 @@ async function WatchData({
 
     if (preview === "true") {
         const cookieStore = await cookies();
-        const adminToken = cookieStore.get("lofilm_admin_token")?.value;
+        const adminToken = cookieStore.get("cinestream_admin_token")?.value;
         if (adminToken === process.env.ADMIN_PASSWORD) {
             isPreview = true;
         }
@@ -189,7 +189,7 @@ async function WatchData({
                         </div>
                     </div>
 
-                    <p className="mt-8 text-white/20 text-[10px] uppercase tracking-[0.4em] font-bold">LoFilm Lightweight Experience</p>
+                    <p className="mt-8 text-white/20 text-[10px] uppercase tracking-[0.4em] font-bold">CineStream Lightweight Experience</p>
                 </div>
             </div>
         );
@@ -306,7 +306,7 @@ async function WatchData({
         "@type": "VideoObject",
         "name": `${movie.name} - ${currentEpisode.name}`,
         "description": (movie.content || "").replace(/<[^>]*>/g, '').substring(0, 300) ||
-            `Xem phim ${movie.name} (${movie.origin_name}) - ${currentEpisode.name} vietsub chất lượng cao tại LoFilm`,
+            `Xem phim ${movie.name} (${movie.origin_name}) - ${currentEpisode.name} vietsub chất lượng cao tại CineStream`,
         "thumbnailUrl": movie.poster_url || movie.thumb_url,
         "uploadDate": movie.modified?.time || new Date().toISOString(),
         "contentUrl": getAbsoluteUrl(`/phim/${slug}/${episodeSlug}`),
@@ -324,11 +324,11 @@ async function WatchData({
         "genre": movie.category?.map((c: any) => c.name),
         "publisher": {
             "@type": "Organization",
-            "name": "LoFilm",
+            "name": "CineStream",
             "url": SITE_URL,
             "logo": {
                 "@type": "ImageObject",
-                "url": getAbsoluteUrl("/images/lofilm_logo.webp")
+                "url": getAbsoluteUrl("/icon.png")
             }
         }
     };

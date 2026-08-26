@@ -69,7 +69,7 @@ export default function ReunificationLoader() {
                     50% { transform: scale(1.05) translateY(-5px); }
                 }
                 .reunification-loader {
-                    @apply lofilm-loader-overlay;
+                    @apply cinestream-loader-overlay;
                     background: #0F1115;
                 }
                 .loader-bg-glow {
@@ -96,7 +96,7 @@ export default function ReunificationLoader() {
                     .flag-badge { width: 180px; margin-bottom: -65px; }
                 }
                 .event-logo {
-                    @apply lofilm-loader-logo;
+                    @apply cinestream-loader-logo;
                     animation: cssFadeInUp 0.8s ease-out 0.2s forwards;
                     opacity: 0;
                     position: relative;
@@ -185,8 +185,8 @@ export default function ReunificationLoader() {
                     <div className="flag-badge">
                         <img src="/images/vn-flag-full.gif" alt="Vietnam Flag" className="w-full h-auto" style={{ maxWidth: '180px', maxHeight: '120px' }} />
                     </div>
-                    <div className="lofilm-loader-text !mb-0">
-                        LoFilm
+                    <div className="cinestream-loader-text !mb-0">
+                        CineStream
                     </div>
                     <div className="event-celebration">
                         Chúc mừng Đại lễ 30/04 - 01/05

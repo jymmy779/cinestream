@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { SubtitleTrack } from "@/app/types/movie";
 
-const PREFS_KEY = "lofilm-subtitle-prefs";
+const PREFS_KEY = "cinestream-subtitle-prefs";
 
 interface SubtitlePrefs {
     slot1: string | null; // lang code or null = off

@@ -286,7 +286,7 @@ export default function HeroSlider({ initialMovies }: HeroSliderProps) {
                         {/* 4. Description (Desktop only) */}
                         <div className="hidden md:block max-w-xl lg:max-w-2xl animate-[heroFadeInUp_0.85s_cubic-bezier(0.22,1,0.36,1)_0.18s_both]">
                             <p className="text-white/70 text-xs sm:text-sm leading-relaxed line-clamp-2 lg:line-clamp-3">
-                                {cleanContent(currentMovie.content) || "Bộ phim hấp dẫn đang được phát sóng với chất lượng cao trên LoFilm..."}
+                                {cleanContent(currentMovie.content) || "Bộ phim hấp dẫn đang được phát sóng với chất lượng cao trên CineStream..."}
                             </p>
                         </div>
 

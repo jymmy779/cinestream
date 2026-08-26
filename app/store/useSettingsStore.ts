@@ -27,7 +27,7 @@ export const useSettingsStore = create<SettingsState>()(
       toggleNewMovieNotif: () => set((state) => ({ newMovieNotif: !state.newMovieNotif })),
     }),
     {
-      name: 'lofilm-utility-settings', // key trong localStorage
+      name: 'cinestream-utility-settings', // key trong localStorage
     }
   )
 );

@@ -1,5 +1,5 @@
 /**
- * Tiện ích tạo và xử lý Avatar Dicebear cho LoFilm
+ * Tiện ích tạo và xử lý Avatar Dicebear cho CineStream
  */
 
 export const DICEBEAR_STYLES = [

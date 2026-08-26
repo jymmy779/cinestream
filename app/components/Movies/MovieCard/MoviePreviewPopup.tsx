@@ -138,7 +138,7 @@ export default function MoviePreviewPopup({
                         />
                     )}
 
-                    {/* Overlay chéo (Angled Gradient) 20 độ theo màu của LoFilm (#0F1115) */}
+                    {/* Overlay chéo (Angled Gradient) 20 độ theo màu của CineStream (#0F1115) */}
                     <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(20deg,rgba(17,19,25,0.6)_0%,rgba(17,19,25,0)_100%)]" />
                 </div>
 

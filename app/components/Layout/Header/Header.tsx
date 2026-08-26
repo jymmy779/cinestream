@@ -142,18 +142,10 @@ export default function Header() {
                                         <line x1="3" y1="18" x2="21" y2="18"></line>
                                     </svg>
                                 </button>
-                                <TransitionLink href="/" className="shrink-0">
-                                    <Image
-                                        width={140}
-                                        height={70}
-                                        className="h-[50px] md:h-[65px] w-auto object-contain"
-                                        style={{ maxWidth: '140px', maxHeight: '65px' }}
-                                        src="/images/lofilm_logo.webp"
-                                        alt="LoFilm - Xem Phim Online Chất Lượng Cao | Phim 4K Vietsub Miễn Phí"
-                                        priority
-                                        unoptimized
-                                        sizes="(max-width: 768px) 140px, 140px"
-                                    />
+                                <TransitionLink href="/" className="shrink-0" aria-label="CineStream home">
+                                    <span className="text-xl md:text-2xl font-black italic tracking-[-0.06em] text-white">
+                                        Cine<span className="text-[#D497FF]">Stream</span>
+                                    </span>
                                 </TransitionLink>
                             </div>
                             <div className={`flex-1 md:block md:ml-4 lg:ml-8 ${isSearchActive ? "block animate-reveal-left" : "hidden"}`}>
@@ -189,17 +181,10 @@ export default function Header() {
 
                     <div className="hidden xl:flex items-center justify-between w-full h-full">
                         <div className="flex items-center gap-2 flex-1">
-                            <TransitionLink href="/" className="shrink-0">
-                                <Image
-                                    width={150}
-                                    height={80}
-                                    className="h-[50px] xl:h-[55px] 2xl:h-[65px] w-auto object-contain transition-all duration-300"
-                                    style={{ maxWidth: '150px', maxHeight: '65px' }}
-                                    src="/images/lofilm_logo.webp"
-                                    alt="LoFilm - Xem Phim Online Chất Lượng Cao"
-                                    priority
-                                    unoptimized
-                                />
+                            <TransitionLink href="/" className="shrink-0" aria-label="CineStream home">
+                                <span className="text-2xl 2xl:text-3xl font-black italic tracking-[-0.06em] text-white transition-all duration-300">
+                                    Cine<span className="text-[#D497FF]">Stream</span>
+                                </span>
                             </TransitionLink>
 
                             <div className="md:ml-4 w-full max-w-[320px]">

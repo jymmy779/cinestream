@@ -26,7 +26,7 @@ export async function reportCommentToTelegram(data: {
 🆔 *Comment ID:* ${data.commentId}
 
 👤 *Người báo cáo:* ${data.reportedBy || "Ẩn danh"}
-🔗 *Link:* [Nhấn để xem](https://lofilm.vn/phim/${data.movieSlug || ""})
+🔗 *Path:* /phim/${data.movieSlug || ""}
     `.trim();
 
     try {

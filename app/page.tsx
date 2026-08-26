@@ -10,7 +10,7 @@ export const revalidate = 300; // ISR: rebuild trang chủ mỗi 300s (5 phút)
 import { SITE_URL, getAbsoluteUrl } from "@/app/config/site";
 
 export async function generateMetadata(): Promise<Metadata> {
-    let ogImage = getAbsoluteUrl('/images/lofilm_logo.webp'); // Default
+    let ogImage = getAbsoluteUrl('/images/hero.webp'); // Default
     
     try {
         const homeData = await prefetchHomePageData();
@@ -25,29 +25,29 @@ export async function generateMetadata(): Promise<Metadata> {
     }
 
     return {
-        title: "LoFilm - Xem Phim Online Chất Lượng Cao, Phim 4K, Vietsub",
-        description: "Trải nghiệm xem phim online chất lượng cao 4K, Vietsub tại LoFilm. Kho phim lẻ, phim bộ, anime mới nhất 2026 cập nhật mỗi ngày với tốc độ cực nhanh và không quảng cáo!",
+        title: "CineStream - Xem Phim Online Chất Lượng Cao, Phim 4K, Vietsub",
+        description: "Trải nghiệm xem phim online chất lượng cao 4K, Vietsub tại CineStream. Kho phim lẻ, phim bộ, anime mới nhất 2026 cập nhật mỗi ngày với tốc độ cực nhanh và không quảng cáo!",
         alternates: {
             canonical: SITE_URL,
         },
         openGraph: {
-            title: "LoFilm - Kho Phim Giải Trí Đỉnh Cao, Xem Phim Online 4K, Vietsub",
-            description: "Trải nghiệm xem phim chất lượng cao 4K, Vietsub, thuyết minh hoàn toàn miễn phí tại LoFilm.",
+            title: "CineStream - Kho Phim Giải Trí Đỉnh Cao, Xem Phim Online 4K, Vietsub",
+            description: "Trải nghiệm xem phim chất lượng cao 4K, Vietsub, thuyết minh hoàn toàn miễn phí tại CineStream.",
             url: SITE_URL,
-            siteName: "LoFilm",
+            siteName: "CineStream",
             locale: "vi_VN",
             type: "website",
             images: [{
                 url: ogImage,
                 width: 1200,
                 height: 630,
-                alt: "LoFilm - Xem Phim Online Chất Lượng Cao",
+                alt: "CineStream - Xem Phim Online Chất Lượng Cao",
             }],
         },
         twitter: {
             card: 'summary_large_image',
-            title: 'LoFilm - Xem Phim Online Chất Lượng Cao',
-            description: 'Xem phim LoFilm miễn phí, chất lượng 4K, Vietsub.',
+            title: 'CineStream - Xem Phim Online Chất Lượng Cao',
+            description: 'Xem phim CineStream miễn phí, chất lượng 4K, Vietsub.',
             images: [ogImage],
         },
     };

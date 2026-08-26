@@ -60,7 +60,7 @@ export default function LibraryPage() {
       if (!hError && hData) combinedHistory = hData;
 
       try {
-        const HISTORY_KEY = `lofilm-watch-history-${currentUser.id}`;
+        const HISTORY_KEY = `cinestream-watch-history-${currentUser.id}`;
         const localDataStr = localStorage.getItem(HISTORY_KEY);
         if (localDataStr) {
           const localHistory = JSON.parse(localDataStr);
@@ -131,7 +131,7 @@ export default function LibraryPage() {
           const isLocal = id.toString().startsWith('local-');
           if (isLocal) {
             try {
-              const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+              const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
               const localDataStr = localStorage.getItem(HISTORY_KEY);
               if (localDataStr) {
                 const history = JSON.parse(localDataStr);
@@ -152,7 +152,7 @@ export default function LibraryPage() {
             if (!error) {
               setWatchHistory(prev => prev.filter(item => item.movie_slug !== movieSlug));
               try {
-                const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+                const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
                 const localDataStr = localStorage.getItem(HISTORY_KEY);
                 if (localDataStr) {
                   const history = JSON.parse(localDataStr);

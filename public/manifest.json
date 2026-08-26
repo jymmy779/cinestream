@@ -1,7 +1,7 @@
 {
-  "name": "LoFilm - Xem Phim Online Chất Lượng Cao",
-  "short_name": "LoFilm",
-  "description": "Trải nghiệm xem phim online đỉnh cao tại LoFilm. Kho phim HD khổng lồ, vietsub chuẩn, tốc độ cực nhanh.",
+  "name": "CineStream - Xem Phim Online Chất Lượng Cao",
+  "short_name": "CineStream",
+  "description": "Trải nghiệm xem phim online đỉnh cao tại CineStream. Kho phim HD khổng lồ, vietsub chuẩn, tốc độ cực nhanh.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a1628",

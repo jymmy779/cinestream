@@ -51,16 +51,16 @@ export default function InitialLoader() {
   return (
     <>
       <div 
-        className={`lofilm-loader-overlay ${fadingOut ? 'fade-out' : ''}`}
+        className={`cinestream-loader-overlay ${fadingOut ? 'fade-out' : ''}`}
         style={{ position: 'fixed', inset: 0, backgroundColor: '#0F1115', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <div className="lofilm-loader-content">
-          <div className="lofilm-loader-text">
-            LoFilm
+        <div className="cinestream-loader-content">
+          <div className="cinestream-loader-text">
+            CineStream
           </div>
 
-          <div className="lofilm-loader-bar-container">
-            <div className="lofilm-loader-bar-fill"></div>
+          <div className="cinestream-loader-bar-container">
+            <div className="cinestream-loader-bar-fill"></div>
           </div>
           <div className="vn-copyright">
             Thế giới phim ảnh trong tầm tay

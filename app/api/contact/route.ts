@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const escape = (s: string) => s.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
 
   const lines = [
-    `📩 *TIN NHẮN LIÊN HỆ MỚI \\- LOFILM*`,
+    `📩 *TIN NHẮN LIÊN HỆ MỚI \\- CINESTREAM*`,
     ``,
     `👤 *Họ tên:* ${escape(name)}`,
     `📧 *Email:* ${escape(email)}`,

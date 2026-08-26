@@ -48,7 +48,7 @@ export default function HistoryPage() {
       }
 
       try {
-        const HISTORY_KEY = `lofilm-watch-history-${currentUser.id}`;
+        const HISTORY_KEY = `cinestream-watch-history-${currentUser.id}`;
         const localDataStr = localStorage.getItem(HISTORY_KEY);
         if (localDataStr) {
           const localHistory = JSON.parse(localDataStr);
@@ -110,7 +110,7 @@ export default function HistoryPage() {
 
         if (isLocal) {
           try {
-            const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+            const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
             const localDataStr = localStorage.getItem(HISTORY_KEY);
             if (localDataStr) {
               const history = JSON.parse(localDataStr);
@@ -131,7 +131,7 @@ export default function HistoryPage() {
           if (!error) {
             setWatchHistory(prev => prev.filter(item => item.movie_slug !== itemToDelete.movie_slug));
             try {
-              const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+              const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
               const localDataStr = localStorage.getItem(HISTORY_KEY);
               if (localDataStr) {
                 const history = JSON.parse(localDataStr);
@@ -159,7 +159,7 @@ export default function HistoryPage() {
       confirmText: "Xóa tất cả",
       onConfirm: async () => {
         try {
-          const HISTORY_KEY = `lofilm-watch-history-${user?.id || 'guest'}`;
+          const HISTORY_KEY = `cinestream-watch-history-${user?.id || 'guest'}`;
           localStorage.removeItem(HISTORY_KEY);
 
           if (user) {

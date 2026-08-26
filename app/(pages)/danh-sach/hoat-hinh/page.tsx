@@ -14,14 +14,14 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     
     return {
         title: isAnime 
-            ? "Phim Anime Nhật Bản Hay Nhất | LoFilm - Xem Anime Vietsub Mới" 
-            : "Phim Hoạt Hình Hay Nhất | LoFilm - Xem Hoạt Hình Vietsub 4K",
+            ? "Phim Anime Nhật Bản Hay Nhất | CineStream - Xem Anime Vietsub Mới" 
+            : "Phim Hoạt Hình Hay Nhất | CineStream - Xem Hoạt Hình Vietsub 4K",
         description: isAnime
-            ? "Tổng hợp các bộ phim anime Nhật Bản hay nhất, thuyết minh vietsub cực chất, cập nhật liên tục mỗi ngày trên LoFilm. Xem anime Naruto, One Piece, Dragon Ball miễn phí."
-            : "Tổng hợp các bộ phim hoạt hình hay nhất, thuyết minh vietsub cực chất, cập nhật liên tục mỗi ngày trên LoFilm. Xem hoạt hình Disney, Pixar, DreamWorks miễn phí 4K.",
+            ? "Tổng hợp các bộ phim anime Nhật Bản hay nhất, thuyết minh vietsub cực chất, cập nhật liên tục mỗi ngày trên CineStream. Xem anime Naruto, One Piece, Dragon Ball miễn phí."
+            : "Tổng hợp các bộ phim hoạt hình hay nhất, thuyết minh vietsub cực chất, cập nhật liên tục mỗi ngày trên CineStream. Xem hoạt hình Disney, Pixar, DreamWorks miễn phí 4K.",
         keywords: isAnime
-            ? ["anime", "anime vietsub", "anime nhat ban", "anime moi nhat", "xem anime online", "lofilm anime"]
-            : ["phim hoat hinh", "hoat hinh hay", "phim hoat hinh disney", "hoat hinh pixar", "xem phim hoat hinh online", "lofilm hoat hinh"],
+            ? ["anime", "anime vietsub", "anime nhat ban", "anime moi nhat", "xem anime online", "cinestream anime"]
+            : ["phim hoat hinh", "hoat hinh hay", "phim hoat hinh disney", "hoat hinh pixar", "xem phim hoat hinh online", "cinestream hoat hinh"],
         alternates: {
             canonical: getAbsoluteUrl(isAnime ? '/danh-sach/hoat-hinh?country=nhat-ban' : '/danh-sach/hoat-hinh'),
         },

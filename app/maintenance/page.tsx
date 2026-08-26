@@ -94,7 +94,7 @@ export default function MaintenancePage() {
             </div>
 
             <div className="text-white/30 text-[10px] md:text-xs mt-6 md:mt-8 border-t border-white/5 pt-6 md:pt-8 w-full max-w-[200px] md:max-w-xs block">
-              © 2026 LoFilm. All rights reserved.
+              © 2026 CineStream. All rights reserved.
             </div>
           </div>
         </div>

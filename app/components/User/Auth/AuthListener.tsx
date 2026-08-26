@@ -13,7 +13,7 @@ export default function AuthListener() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       // Catch password recovery event
       if (event === "PASSWORD_RECOVERY") {
-        localStorage.removeItem('lofilm-guest-watch-history');
+        localStorage.removeItem('cinestream-guest-watch-history');
         router.push("/dat-lai-mat-khau");
         router.refresh(); // Ép Next.js tải lại server state (cookie) để Header cập nhật Account B
       }
@@ -21,7 +21,7 @@ export default function AuthListener() {
       if (event === "SIGNED_IN") {
         if (session?.user) {
           try {
-            const GUEST_HISTORY_KEY = 'lofilm-guest-watch-history';
+            const GUEST_HISTORY_KEY = 'cinestream-guest-watch-history';
             const historyStr = localStorage.getItem(GUEST_HISTORY_KEY);
             if (historyStr) {
               const history = JSON.parse(historyStr);
@@ -53,7 +53,7 @@ export default function AuthListener() {
 
         // If we have a recovery token in the URL fragment
         if (window.location.hash.includes("type=recovery") || window.location.hash.includes("access_token=")) {
-          localStorage.removeItem('lofilm-guest-watch-history');
+          localStorage.removeItem('cinestream-guest-watch-history');
           router.push("/dat-lai-mat-khau");
           router.refresh();
         }
@@ -61,7 +61,7 @@ export default function AuthListener() {
 
       if (event === "SIGNED_OUT") {
         // Đăng xuất thì dọn dẹp sạch sẽ lịch sử khách để người sau dùng máy không bị thấy
-        localStorage.removeItem('lofilm-guest-watch-history');
+        localStorage.removeItem('cinestream-guest-watch-history');
       }
     });
 

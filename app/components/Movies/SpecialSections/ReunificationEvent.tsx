@@ -113,7 +113,7 @@ export default function ReunificationEvent() {
                 {/* Banner Footer */}
                 <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-6 border-t border-red-200/50 pt-8">
                     <div className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] lg:tracking-[0.5em] opacity-50 text-center md:text-left order-2 md:order-1">
-                        LoFilm - Lưu giữ giá trị văn hóa lịch sử qua từng thước phim
+                        CineStream - Lưu giữ giá trị văn hóa lịch sử qua từng thước phim
                     </div>
                     <TransitionLink
                         href="/quoc-gia/viet-nam"

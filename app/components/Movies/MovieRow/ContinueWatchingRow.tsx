@@ -48,7 +48,7 @@ function ContinueWatchingRow({ initialHistory }: ContinueWatchingRowProps) {
 
         // 2. Lấy dữ liệu từ LocalStorage (cho khách hoặc dự phòng reload)
         try {
-            const HISTORY_KEY = user ? `lofilm-watch-history-${user.id}` : 'lofilm-guest-watch-history';
+            const HISTORY_KEY = user ? `cinestream-watch-history-${user.id}` : 'cinestream-guest-watch-history';
             const localDataStr = localStorage.getItem(HISTORY_KEY);
             if (localDataStr) {
                 const localHistory = JSON.parse(localDataStr);
@@ -159,9 +159,9 @@ function ContinueWatchingRow({ initialHistory }: ContinueWatchingRowProps) {
                 if (user) {
                     const { error } = await supabase.from('watch_history').delete().eq('user_id', user.id);
                     if (error) throw error;
-                    localStorage.removeItem(`lofilm-watch-history-${user.id}`);
+                    localStorage.removeItem(`cinestream-watch-history-${user.id}`);
                 } else {
-                    localStorage.removeItem('lofilm-guest-watch-history');
+                    localStorage.removeItem('cinestream-guest-watch-history');
                 }
                 mutate(cacheKey, [], false);
                 toast.success("Đã xóa toàn bộ lịch sử");
@@ -184,7 +184,7 @@ function ContinueWatchingRow({ initialHistory }: ContinueWatchingRowProps) {
 
         try {
             if (isLocal) {
-                const HISTORY_KEY = user ? `lofilm-watch-history-${user.id}` : 'lofilm-guest-watch-history';
+                const HISTORY_KEY = user ? `cinestream-watch-history-${user.id}` : 'cinestream-guest-watch-history';
                 const localDataStr = localStorage.getItem(HISTORY_KEY);
                 if (localDataStr) {
                     const localHistory = JSON.parse(localDataStr);
@@ -201,7 +201,7 @@ function ContinueWatchingRow({ initialHistory }: ContinueWatchingRowProps) {
 
                 // Also attempt local cleanup - xóa tất cả entries của movie trong localStorage
                 try {
-                    const HISTORY_KEY = `lofilm-watch-history-${user.id}`;
+                    const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
                     const localDataStr = localStorage.getItem(HISTORY_KEY);
                     if (localDataStr) {
                         const localHistory = JSON.parse(localDataStr);

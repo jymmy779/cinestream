@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     const secret = searchParams.get('secret');
 
     // Simple secret protection
-    if (secret !== process.env.CACHE_FLUSH_SECRET && secret !== 'lofilm-flush-2026') {
+    if (secret !== process.env.CACHE_FLUSH_SECRET && secret !== 'cinestream-flush-2026') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

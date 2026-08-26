@@ -25,15 +25,10 @@ export default async function Footer() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-8">
-                            <TransitionLink href="/" className="shrink-0 transition-transform hover:scale-105">
-                                <Image
-                                    src="/images/lofilm_logo.webp"
-                                    alt="LoFilm - Xem phim online chất lượng cao"
-                                    width={140}
-                                    height={70}
-                                    unoptimized
-                                    className=" object-contain drop-shadow-lg"
-                                />
+                            <TransitionLink href="/" className="shrink-0 transition-transform hover:scale-105" aria-label="CineStream home">
+                                <span className="text-3xl font-black italic tracking-[-0.06em] text-white">
+                                    Cine<span className="text-[#D497FF]">Stream</span>
+                                </span>
                             </TransitionLink>
 
                             <div className="flex flex-wrap items-center gap-3">
@@ -96,10 +91,10 @@ export default async function Footer() {
 
                         <div className="text-[12px] text-white/40 leading-relaxed max-w-4xl space-y-4">
                             <p>
-                                <strong className="text-white/60 font-semibold">LoFilm</strong> ra đời với sứ mệnh mang không gian điện ảnh chân thực nhất đến ngay màn hình của bạn. Khi tìm kiếm <strong className="text-white/50">xem phim LoFilm</strong>, bạn sẽ được trải nghiệm một trạm dừng chân giải trí cao cấp, nơi hội tụ những siêu phẩm chiếu rạp, phim bộ độc quyền và các TV Show thịnh hành nhất. Với giao diện tối giản chuẩn cinematic, hệ thống điều hướng thông minh cùng tốc độ truyền tải mượt mà, LoFilm định hình lại cách bạn tận hưởng nghệ thuật thứ bảy.
+                                <strong className="text-white/60 font-semibold">CineStream</strong> ra đời với sứ mệnh mang không gian điện ảnh chân thực nhất đến ngay màn hình của bạn. Khi tìm kiếm <strong className="text-white/50">xem phim CineStream</strong>, bạn sẽ được trải nghiệm một trạm dừng chân giải trí cao cấp, nơi hội tụ những siêu phẩm chiếu rạp, phim bộ độc quyền và các TV Show thịnh hành nhất. Với giao diện tối giản chuẩn cinematic, hệ thống điều hướng thông minh cùng tốc độ truyền tải mượt mà, CineStream định hình lại cách bạn tận hưởng nghệ thuật thứ bảy.
                             </p>
                             <p>
-                                Kho tàng nội dung tại LoFilm được đầu tư và cập nhật liên tục, bao quát đa dạng nền văn hoá: từ làn sóng Hallyu Hàn Quốc, vũ trụ C-Drama, thế giới Anime đa sắc đến các bom tấn kĩ xảo Hollywood. Dù bạn ưu thích sự kịch tính của phim hành động hay chìm đắm trong những thước phim tình cảm sâu lắng, LoFilm luôn sẵn sàng phục vụ bằng định dạng Full HD cực nét, vietsub chuẩn xác và trải nghiệm hoàn toàn phi lợi nhuận.
+                                Kho tàng nội dung tại CineStream được đầu tư và cập nhật liên tục, bao quát đa dạng nền văn hoá: từ làn sóng Hallyu Hàn Quốc, vũ trụ C-Drama, thế giới Anime đa sắc đến các bom tấn kĩ xảo Hollywood. Dù bạn ưu thích sự kịch tính của phim hành động hay chìm đắm trong những thước phim tình cảm sâu lắng, CineStream luôn sẵn sàng phục vụ bằng định dạng Full HD cực nét, vietsub chuẩn xác và trải nghiệm hoàn toàn phi lợi nhuận.
                             </p>
                             {(settings?.contact_telegram || settings?.contact_telegram_name) && (
                                 <div className="flex items-center gap-2 pt-2" suppressHydrationWarning>
@@ -128,7 +123,7 @@ export default async function Footer() {
 
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-5 border-t border-white/10">
                             <div className="text-[13px] text-white/30 font-medium">
-                                © {new Date().getFullYear()} <span className="text-white/50">LoFilm</span>. All rights reserved.
+                                © {new Date().getFullYear()} <span className="text-white/50">CineStream</span>. All rights reserved.
                             </div>
 
                             <div className="flex items-center gap-4">
@@ -147,16 +142,8 @@ export default async function Footer() {
                     </div>
 
                     <div className="col-span-1 lg:col-span-4 hidden lg:flex items-center justify-end select-none pointer-events-none relative">
-                        <div className="w-[350px] aspect-square opacity-[0.009] hover:opacity-[0.05] transition-opacity duration-1000 relative">
-                            <Image
-                                src="/images/lofilm_logo.webp"
-                                fill
-                                alt='LoFilm Cinematic'
-                                loading='eager'
-                                unoptimized
-                                sizes="350px"
-                                className="object-contain filter grayscale"
-                            />
+                        <div className="text-5xl xl:text-6xl font-black italic tracking-[-0.07em] text-white/[0.035]">
+                            CineStream
                         </div>
                     </div>
                 </div>
