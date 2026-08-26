@@ -276,6 +276,44 @@ export default function AuthContent() {
 
   // handleForgotPassword đã được thay thế bằng redirect sang /quen-mat-khau
 
+  if (isDemoMode) {
+    return (
+      <Container className="min-h-[90vh] pt-28 pb-30 px-4 relative">
+        <div className="mb-10 md:mb-12 w-full">
+          <CatalogHeader title="Tài khoản demo" showTitle={false} />
+        </div>
+
+        <div className="flex justify-center">
+          <div className="w-full max-w-md bg-[#0F1115]/70 border border-white/10 rounded-[32px] p-7 md:p-10 text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#D497FF]/10 via-transparent to-transparent pointer-events-none" />
+            <div className="relative">
+              <div className="mx-auto mb-6 w-16 h-16 rounded-2xl bg-[#D497FF]/10 border border-[#D497FF]/20 flex items-center justify-center">
+                <User className="w-7 h-7 text-[#D497FF]" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                Trải nghiệm CineStream
+              </h1>
+              <p className="text-white/45 text-sm leading-relaxed mb-8">
+                Dùng tài khoản demo để thử thư viện, lịch sử xem và các tính năng cá nhân. Dữ liệu chỉ được lưu trên trình duyệt này.
+              </p>
+              <button
+                type="button"
+                onClick={() => createDemoSession("demo@cinestream.dev", "Demo Recruiter")}
+                className="w-full bg-gradient-to-r from-[#D497FF] to-[#B366FF] text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#D497FF]/20 active:translate-y-0 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Trải nghiệm tài khoản demo
+                <ArrowRight className="w-[18px] h-[18px]" />
+              </button>
+              <p className="mt-4 text-[11px] text-white/25">
+                Không cần email, mật khẩu hay Supabase.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Container>
+    );
+  }
+
   return (
     <Container className="min-h-[90vh] pt-28 pb-30 px-4 relative">
       <div className="mb-10 md:mb-12 w-full">
