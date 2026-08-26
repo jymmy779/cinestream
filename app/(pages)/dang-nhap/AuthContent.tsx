@@ -1,0 +1,448 @@
+"use client";
+
+import React, { useState } from "react";
+
+import { Mail, Lock, User, ArrowRight, ThumbsUp, Star, History as HistoryIcon, AlertCircle, CheckCircle2 } from "lucide-react";
+import AuthInput from "@/app/components/User/Auth/AuthInput";
+import { createClient } from "@/app/utils/supabase/client";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
+
+import { usePageTransition } from "@/app/components/UI/Transition/PageTransitionContext";
+import CatalogHeader from "../../components/Movies/MovieCatalog/CatalogHeader";
+import Container from "../../components/UI/Container";
+import Link from "next/link";
+import { getRandomDicebearAvatar } from "@/app/utils/avatar-helper";
+
+// Import Sidebar từ đúng thư mục
+import SidebarComp from "@/app/components/Layout/Sidebar/Sidebar";
+
+export default function AuthContent() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const turnstileRef = React.useRef<TurnstileInstance>(null);
+  const router = useRouter();
+  const { navigateWithTransition } = usePageTransition();
+  const supabase = createClient();
+
+  React.useEffect(() => {
+    // Load last login email for better autofill UX
+    const savedEmail = localStorage.getItem('last_login_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+
+    // 1. Kiểm tra session ngay lập tức khi vào trang
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.push("/");
+      }
+    };
+    checkSession();
+
+    // 2. Lắng nghe thay đổi trạng thái đăng nhập (để đồng bộ giữa các Tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Chúng ta sẽ để logic kiểm tra session ở mount và handleAuth xử lý chuyển hướng
+      // Tránh việc gọi push ở đây gây xung đột với transition
+      if (event === "SIGNED_OUT") {
+        router.refresh();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase, router]);
+
+  // Xử lý thông báo lỗi từ callback URL (OAuth errors)
+  React.useEffect(() => {
+    // 1. Kiểm tra Hash fragment (#error_description=...)
+    const hash = window.location.hash;
+    if (hash && hash.includes("error_description")) {
+      const params = new URLSearchParams(hash.substring(1));
+      const errorDesc = params.get("error_description");
+      if (errorDesc) {
+        toast.error("Lỗi xác thực: " + decodeURIComponent(errorDesc).replace(/\+/g, ' '), { duration: 6000 });
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+
+    // 2. Kiểm tra Query params (?error=...)
+    const searchParams = new URLSearchParams(window.location.search);
+    const err = searchParams.get("error");
+    if (err) {
+      if (err === "auth-callback-failed") {
+        toast.error("Xác thực thất bại. Có thể do kết nối gián đoạn, vui lòng thử lại!");
+      } else {
+        toast.error("Lỗi: " + err);
+      }
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
+  // Xử lý dọn dẹp form khi chuyển tab
+  React.useEffect(() => {
+    if (!isLogin) {
+      // Khi sang tab Đăng ký: xóa sạch mọi thông tin
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setFullName("");
+    } else {
+      // Khi sang tab Đăng nhập: dọn email và password
+      setEmail("");
+      setPassword("");
+    }
+  }, [isLogin]);
+
+  const translateError = (error: string) => {
+    if (error.includes("Invalid login credentials")) return "Email hoặc mật khẩu không chính xác!";
+    if (error.includes("Email not confirmed")) return "Email của bạn chưa được xác thực. Vui lòng kiểm tra hộp thư!";
+    if (error.includes("User already registered")) return "Email này đã được đăng ký bởi người dùng khác!";
+    if (error.includes("Password should be at least 6 characters")) return "Mật khẩu phải có ít nhất 6 ký tự!";
+    if (error.includes("rate limit exceeded")) return "Bạn đã thực hiện quá nhiều yêu cầu. Vui lòng thử lại sau!";
+    if (error.includes("captcha protection: request disallowed")) return "Xác thực Captcha thất bại. Vui lòng thử lại!";
+    return "Đã có lỗi xảy ra, vui lòng thử lại!";
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // queryParams: { prompt: 'select_account' } // Bật cái này nếu muốn user luôn phải chọn lại tài khoản Google
+      },
+    });
+
+    if (error) {
+      toast.error("Không thể kết nối với Google. Vui lòng thử lại!");
+      setIsLoading(false);
+    }
+    // Note: Nếu thành công, trang sẽ tự động redirect sang Google, không cần setIsLoading(false)
+  };
+
+  const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    // Lấy giá trị trực tiếp từ form để phòng trường hợp trình duyệt (như Google Password) 
+    // tự động submit trước khi state của React kịp cập nhật
+    const formData = new FormData(e.currentTarget);
+    const formEmail = (formData.get("email") as string) || email;
+    const formPassword = (formData.get("password") as string) || password;
+    const formFullName = !isLogin ? ((formData.get("name") as string) || fullName) : "";
+
+    try {
+      if (!captchaToken) {
+        toast.error("Đang tải Captcha, vui lòng đợi một chút...");
+        setIsLoading(false);
+        return;
+      }
+
+      if (isLogin) {
+        if (!formEmail || !formPassword) {
+          toast.error("Vui lòng nhập đầy đủ email và mật khẩu!");
+          setIsLoading(false);
+          return;
+        }
+
+        // Handle Login
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: formEmail,
+          password: formPassword,
+          options: {
+            captchaToken,
+          }
+        });
+
+        if (error) throw error;
+
+        // Nếu thành công, tự động tiếp tục luồng đăng nhập mà không cần kiểm tra email_confirmed_at
+
+        // Lưu email vào localStorage để tự điền cho lần sau
+        localStorage.setItem('last_login_email', formEmail);
+
+        toast.success("Chào mừng bạn trở lại!");
+
+        // Lấy trang trước đó từ referrer để giữ transition
+        const referrer = typeof document !== "undefined" ? document.referrer : "";
+        const isInternal = referrer && referrer.includes(window.location.origin) && !referrer.includes("/dang-nhap");
+
+        if (isInternal) {
+          navigateWithTransition(referrer, true);
+        } else {
+          navigateWithTransition("/", true);
+        }
+      } else {
+        // Validation
+        if (!formEmail || !formPassword) {
+          toast.error("Vui lòng nhập đầy đủ thông tin!");
+          setIsLoading(false);
+          return;
+        }
+        if (formPassword.length < 6) {
+          toast.error("Mật khẩu phải có ít nhất 6 ký tự!");
+          setIsLoading(false);
+          return;
+        }
+        if (formPassword !== confirmPassword) {
+          toast.error("Mật khẩu xác nhận không khớp!");
+          setIsLoading(false);
+          return;
+        }
+
+        // Sinh ngẫu nhiên avatar Dicebear độc nhất cho tài khoản mới
+        const randomAvatarUrl = getRandomDicebearAvatar();
+
+        // Handle Sign Up
+        const { data, error } = await supabase.auth.signUp({
+          email: formEmail,
+          password: formPassword,
+          options: {
+            captchaToken,
+            data: {
+              full_name: formFullName,
+              avatar_url: randomAvatarUrl,
+            }
+          },
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        // Đăng xuất ngay lập tức phòng trường hợp Supabase tự động đăng nhập khi tắt Confirm Email
+        await supabase.auth.signOut();
+
+        toast.success("Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.");
+        
+        // Chuyển sang tab đăng nhập
+        setIsLogin(true);
+      }
+    } catch (error: any) {
+      console.error("Auth error:", error.message);
+      toast.error(translateError(error.message));
+      turnstileRef.current?.reset();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // handleForgotPassword đã được thay thế bằng redirect sang /quen-mat-khau
+
+  return (
+    <Container className="min-h-[90vh] pt-28 pb-30 px-4 relative">
+      <div className="mb-10 md:mb-12 w-full">
+        <CatalogHeader
+          title={"Thành viên"}
+          showTitle={false}
+        />
+      </div>
+
+      <div>
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 items-start">
+          {/* Main Auth Form Area */}
+          <div className="flex-grow w-full flex justify-center">
+            <div className="w-full max-w-md bg-[#0F1115]/60 border border-white/10 rounded-[32px] p-6 md:p-10 relative overflow-hidden">
+              {/* Header Tabs */}
+              <div className="flex justify-center mb-8 relative">
+                <div className="flex bg-white/5 p-1 rounded-2xl w-full border border-white/10">
+                  <button
+                    onClick={() => setIsLogin(true)}
+                    className={`flex-1 py-2.5 text-xs md:text-sm font-semibold rounded-xl transition-all cursor-pointer ${isLogin ? "bg-[#D497FF] text-black" : "text-white/60 hover:text-white"
+                      }`}
+                  >
+                    Đăng nhập
+                  </button>
+                  <button
+                    onClick={() => setIsLogin(false)}
+                    className={`flex-1 py-2.5 text-xs md:text-sm font-semibold rounded-xl transition-all cursor-pointer ${!isLogin ? "bg-[#D497FF] text-black" : "text-white/60 hover:text-white"
+                      }`}
+                  >
+                    Đăng ký
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <div key={isLogin ? 'login' : 'register'} className="animate-fade-in">
+                  <div className="text-center mb-8">
+                    <h2 className="text-xl md:text-3xl font-bold text-white mb-2">
+                      {isLogin ? "Chào mừng trở lại!" : "Tạo tài khoản mới"}
+                    </h2>
+                    <p className="text-white/40 text-xs md:text-sm">
+                      {isLogin ? "Cùng LoFilm tiếp tục cuộc hành trình điện ảnh của bạn." : "Trở thành thành viên và khám phá kho phim khổng lồ."}
+                    </p>
+                  </div>
+
+                  <form
+                    onSubmit={handleAuth}
+                    className="space-y-4"
+                  >
+                    {/* Full Name Input - Only for Sign up */}
+                    {!isLogin && (
+                      <AuthInput
+                        type="text"
+                        name="name"
+                        autoComplete="name"
+                        required={!isLogin}
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Tên hiển thị"
+                        icon={User}
+                      />
+                    )}
+
+                    <AuthInput
+                      type="email"
+                      name="email"
+                      autoComplete="username"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Email của bạn"
+                      icon={Mail}
+                    />
+
+                    <AuthInput
+                      type="password"
+                      name="password"
+                      autoComplete={isLogin ? "current-password" : "new-password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={isLogin ? "Mật khẩu" : "Tạo mật khẩu"}
+                      icon={Lock}
+                    />
+
+                    {/* Confirm Password - Only for Sign up */}
+                    {!isLogin && (
+                      <AuthInput
+                        type="password"
+                        name="confirm-password"
+                        autoComplete="new-password"
+                        required={!isLogin}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Xác nhận mật khẩu"
+                        icon={Lock}
+                      />
+                    )}
+
+                    {isLogin && (
+                      <div className="flex items-center justify-end px-2">
+                        <Link
+                          href="/quen-mat-khau"
+                          className="text-[#D497FF]/60 hover:text-[#D497FF] text-[10px] md:text-xs transition-colors cursor-pointer"
+                        >
+                          Quên mật khẩu?
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Turnstile Captcha */}
+                    <div className="flex justify-center mt-4">
+                      <Turnstile
+                        ref={turnstileRef}
+                        siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+                        onSuccess={(token) => setCaptchaToken(token)}
+                        options={{ theme: 'dark' }}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full bg-gradient-to-r from-[#D497FF] to-[#B366FF] text-black py-3 md:py-4 rounded-2xl font-bold text-sm md:text-base flex items-center justify-center gap-2 hover:translate-y-[-2px] hover:shadow-lg hover:shadow-[#D497FF]/20 active:translate-y-0 active:scale-[0.98] transition-all cursor-pointer mt-4"
+                    >
+                      {isLoading ? (
+                        <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          {isLogin ? "Đăng nhập" : "Tạo tài khoản"}
+                          <ArrowRight className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {/* Divider */}
+                  <div className="mt-6 flex items-center justify-center space-x-2">
+                    <span className="h-px w-full bg-white/10"></span>
+                    <span className="text-white/40 text-xs font-medium uppercase tracking-wider">Hoặc</span>
+                    <span className="h-px w-full bg-white/10"></span>
+                  </div>
+
+                  {/* Google Login Button */}
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={isLoading}
+                    className="w-full mt-6 bg-white hover:bg-gray-100 text-black py-3 md:py-4 rounded-2xl font-bold text-sm md:text-base flex items-center justify-center gap-3 hover:translate-y-[-2px] hover:shadow-lg active:translate-y-0 transition-all cursor-pointer"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                    </svg>
+                    Tiếp tục với Google
+                  </button>
+                </div>
+              </div>
+
+              {/* Membership Privileges Grid */}
+              <div className="mt-8 pt-6 border-t border-white/5 grid grid-cols-2 gap-3">
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-center group hover:bg-white/5 transition-all">
+                  <div className="w-10 h-10 bg-[#D497FF]/10 rounded-xl flex items-center justify-center text-[#D497FF] mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <CheckCircle2 size={20} />
+                  </div>
+                  <div className="text-[12px] font-bold text-white mb-1">Bình luận phim</div>
+                  <div className="text-[10px] text-white/30 leading-tight">Chia sẻ nhận xét với cộng đồng</div>
+                </div>
+
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-center group hover:bg-white/5 transition-all">
+                  <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-400 mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <ThumbsUp size={20} />
+                  </div>
+                  <div className="text-[12px] font-bold text-white mb-1">Like / Dislike</div>
+                  <div className="text-[10px] text-white/30 leading-tight">Bày tỏ cảm xúc với từng tập phim</div>
+                </div>
+
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-center group hover:bg-white/5 transition-all">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <HistoryIcon size={20} />
+                  </div>
+                  <div className="text-[12px] font-bold text-white mb-1">Lịch sử xem</div>
+                  <div className="text-[10px] text-white/30 leading-tight">Đồng bộ mọi khoảnh khắc xem phim</div>
+                </div>
+
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-3 md:p-4 text-center group hover:bg-white/5 transition-all">
+                  <div className="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center text-rose-500 mx-auto mb-3 group-hover:scale-110 transition-transform">
+                    <Star size={20} />
+                  </div>
+                  <div className="text-[12px] font-bold text-white mb-1">Đánh giá phim</div>
+                  <div className="text-[10px] text-white/30 leading-tight">Chấm điểm bộ phim yêu thích</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="w-full lg:w-[320px] shrink-0 mt-10 lg:mt-0">
+            <SidebarComp />
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div className="absolute top-[20%] left-[10%] w-[30vw] h-[30vw] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#B366FF]/20 to-transparent rounded-full opacity-60" />
+        <div className="absolute bottom-[20%] right-[10%] w-[25vw] h-[25vw] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-[#D497FF]/20 to-transparent rounded-full opacity-60" />
+      </div>
+    </Container>
+  );
+}

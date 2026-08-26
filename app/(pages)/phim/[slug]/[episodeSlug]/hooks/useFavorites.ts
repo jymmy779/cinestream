@@ -1,0 +1,76 @@
+import { useState, useEffect } from "react";
+import { createClient } from "@/app/utils/supabase/client";
+import { toast } from "react-hot-toast";
+import { useAuth } from "@/app/components/User/Auth/AuthContext";
+import { logActivity } from "@/app/utils/log-activity";
+
+export const useFavorites = (movieSlug: string, movieName: string, moviePoster: string, movieThumb?: string) => {
+    const { user } = useAuth();
+    const [isFavorited, setIsFavorited] = useState(false);
+    const supabase = createClient();
+
+    useEffect(() => {
+        // Guard clause: Không query nếu không có user -> tránh 406/401
+        if (!user?.id) return;
+
+        const checkFavorite = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('favorites')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('movie_slug', movieSlug)
+                    .maybeSingle(); // maybeSingle() trả về null thay vì error 406 nếub không tìm thấy row
+
+                if (data) setIsFavorited(true);
+                else setIsFavorited(false);
+            } catch (err) {
+                console.error("Lỗi kiểm tra yêu thích:", err);
+            }
+        };
+        checkFavorite();
+    }, [movieSlug, user?.id]);
+
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const toggleFavorite = async () => {
+        if (!user) {
+            toast.error("Vui lòng đăng nhập để lưu phim yêu thích!");
+            return;
+        }
+
+        if (isProcessing) return;
+        setIsProcessing(true);
+
+        const prevStatus = isFavorited;
+        setIsFavorited(!isFavorited);
+
+        try {
+            if (prevStatus) {
+                const { error } = await supabase.from('favorites').delete().eq('movie_slug', movieSlug).eq('user_id', user.id);
+                if (error) throw error;
+                toast.success("Đã xóa khỏi danh sách yêu thích");
+            } else {
+                const { error } = await supabase.from('favorites').insert({
+                    user_id: user.id,
+                    movie_slug: movieSlug,
+                    movie_name: movieName,
+                    movie_poster: moviePoster || movieThumb
+                });
+                if (error) throw error;
+                toast.success("Đã thêm vào danh sách yêu thích");
+                logActivity(user.id, "favorite_add", { movie_slug: movieSlug, movie_name: movieName });
+            }
+        } catch (err: any) {
+            setIsFavorited(prevStatus);
+            // Bỏ qua lỗi duplicate nếu do spam nhanh
+            if (!err?.message?.includes("duplicate key")) {
+                toast.error("Lỗi: " + err.message);
+            }
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return { isFavorited, toggleFavorite };
+};

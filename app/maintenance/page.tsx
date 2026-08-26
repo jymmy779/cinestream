@@ -1,0 +1,109 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+
+import { Hammer, Clock, Sparkles } from "lucide-react";
+
+export default function MaintenancePage() {
+  const [dots, setDots] = useState("");
+
+  // Prevent scrolling when maintenance mode is active
+  useEffect(() => {
+    // Save original styles
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+
+    // Lock scroll
+    document.body.style.overflow = "hidden";
+    document.body.style.height = "100vh";
+
+    // Hide header/footer using CSS if they exist in the DOM
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+    if (header) header.style.display = 'none';
+    if (footer) footer.style.display = 'none';
+
+    return () => {
+      // Restore styles on unmount
+      document.body.style.overflow = originalStyle;
+      document.body.style.height = "auto";
+      if (header) header.style.display = '';
+      if (footer) footer.style.display = '';
+    };
+  }, []);
+
+  // Animation for the "..." in the message
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-[#0f1115] w-full h-[100dvh] flex items-center justify-center overflow-hidden touch-none">
+      {/* Background Cinematic Effects */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-[radial-gradient(circle_at_center,rgba(212,151,255,0.15)_0%,transparent_70%)] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.08)_0%,transparent_70%)] rounded-full" />
+      </div>
+
+      <div
+        className="relative z-10 w-full max-w-xl px-6 text-center animate-fade-in"
+      >
+        {/* Logo/Icon Area */}
+        <div className="relative mb-8 md:mb-12 flex justify-center">
+          <div
+            className="p-6 md:p-8 rounded-2xl md:rounded-3xl bg-[#0F1115] border border-white/10 shadow-2xl relative overflow-hidden animate-pulse"
+          >
+            {/* Glow overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#D497FF]/10 to-transparent pointer-events-none" />
+            <Hammer className="w-12 h-12 md:w-16 md:h-16 text-[#D497FF] mb-2 relative z-10" />
+            <div className="text-white/40 font-bold text-[10px] md:text-xs uppercase tracking-[0.3em]">Under Maintenance</div>
+          </div>
+
+          {/* Floating extra elements */}
+          <div
+            className="absolute -top-2 -right-1 md:-top-4 md:-right-2 p-2 md:p-3 rounded-full bg-[#D497FF]/20 border border-[#D497FF]/30 shadow-lg animate-bounce"
+          >
+            <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-[#D497FF]" />
+          </div>
+
+          <div
+            className="absolute -bottom-2 -left-1 md:-bottom-4 md:-left-2 p-2 md:p-3 rounded-full bg-white/10 border border-white/15 shadow-lg animate-bounce"
+            style={{ animationDelay: '0.5s' }}
+          >
+            <Clock className="w-4 h-4 md:w-5 md:h-5 text-white/80" />
+          </div>
+        </div>
+
+        {/* Text Content */}
+        <div className="space-y-4 md:space-y-6">
+          <h1 className="text-3xl whitespace-nowrap sm:text-4xl md:text-5xl font-bold tracking-tight text-white mb-2 md:mb-4 px-4">
+            Website Đang <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D497FF] to-[#D497FF]">Bảo Trì</span>{dots}
+          </h1>
+
+          <p className="text-base md:text-lg lg:text-xl text-white/60 leading-relaxed max-w-sm md:max-w-md mx-auto px-4">
+            Hệ thống đang được nâng cấp để mang đến cho bạn trải nghiệm tuyệt vời hơn.
+            Xin lỗi vì sự bất tiện này!
+          </p>
+
+          <div className="pt-6 md:pt-8 flex flex-col items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-3 px-5 py-2.5 md:px-6 md:py-3 rounded-full bg-white/5 border border-white/10 text-white/70 text-xs md:text-sm">
+              <span className="flex h-2 w-2 rounded-full bg-[#D497FF] animate-pulse" />
+              Dự kiến sẽ quay lại sớm nhất có thể
+            </div>
+
+            <div className="text-white/30 text-[10px] md:text-xs mt-6 md:mt-8 border-t border-white/5 pt-6 md:pt-8 w-full max-w-[200px] md:max-w-xs block">
+              © 2026 LoFilm. All rights reserved.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Decorative Binary/Text */}
+      <div className="fixed top-0 right-0 p-4 md:p-8 text-[8px] md:text-xs font-mono text-white/5 uppercase tracking-[0.5em] select-none hidden sm:block">
+        01001100 01001111 01000110 01001001 01001100 01001111
+      </div>
+    </div>
+  );
+}

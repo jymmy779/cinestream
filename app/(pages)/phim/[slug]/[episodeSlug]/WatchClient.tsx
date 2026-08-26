@@ -1,0 +1,2031 @@
+"use client";
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+
+import TransitionLink from "@/app/components/UI/Transition/TransitionLink";
+import LoadingSpinner from "@/app/components/UI/Common/LoadingSpinner";
+import { AlertTriangle, RefreshCcw, List, X, User, MessageSquare, Info, Users, Sparkles, Tag, Play, Film } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+import Hls from "hls.js";
+import Artplayer from "artplayer";
+
+// Detect iOS Safari — không support requestFullscreen() trên div element
+const isIOSDevice = () =>
+    typeof navigator !== 'undefined' &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+    !(window as any).MSStream;
+
+// Helper to extract YouTube video ID from various URL formats
+const getYouTubeId = (url: string): string | null => {
+    if (!url) return null;
+    const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+        /^([a-zA-Z0-9_-]{11})$/
+    ];
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+    }
+    return null;
+};
+
+import Container from "@/app/components/UI/Container";
+import PlayerControls from "./PlayerControls";
+import EpisodeList from "./EpisodeList";
+import DualSubtitleMenu from "./DualSubtitleMenu";
+import MovieHeader from "./MovieHeader";
+import MovieInfo from "./MovieInfo";
+import CommentSection from "@/app/components/Social/Comments/CommentSection";
+import ReportModal from "@/app/components/UI/Common/ReportModal";
+import ShareModal from "@/app/components/Movies/Movie/ShareModal";
+import { getImageUrl, getRawImageUrl, getFriendlyEpisodeSlug, parseEpNumber } from "@/app/utils/movieUtils";
+import LazyRow from "@/app/components/UI/Common/LazyRow";
+import Skeleton from "@/app/components/UI/Skeleton/Skeleton";
+
+import SmartImage from "@/app/components/UI/Common/SmartImage";
+import { fetchTotalEpisodesFromTMDB, fetchActorsFromTMDB, fetchSeasonEpisodesFromTMDB, TMDBActor } from "@/app/utils/tmdbUtils";
+import { getR2ActorUrl, getR2MoviePosterUrl, getR2MovieThumbUrl } from "@/app/utils/r2ImageUrl";
+import { useAuth } from "@/app/components/User/Auth/AuthContext";
+import { INTERNAL_API_URL } from "@/app/utils/apiConfig";
+import { toast } from "react-hot-toast";
+import { MdReplay10, MdForward10 } from "react-icons/md";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createPortal } from "react-dom";
+import { createClient } from "@/app/utils/supabase/client";
+import { SubtitleTrack } from "@/app/types/movie";
+import { useSubtitleManager } from "./hooks/useSubtitleManager";
+import { useVttOverlay } from "./hooks/useVttOverlay";
+import { useFavorites } from "./hooks/useFavorites";
+import { useWatchlist } from "./hooks/useWatchlist";
+import { useWatchProgress } from "./hooks/useWatchProgress";
+import { logActivity } from "@/app/utils/log-activity";
+import { useSettingsStore } from "@/app/store/useSettingsStore";
+
+interface WatchClientProps {
+    slug: string;
+    episodeSlug: string;
+    movie: {
+        name: string;
+        origin_name: string;
+        thumb_url: string;
+        poster_url: string;
+        content: string;
+        quality: string;
+        year?: number | string;
+        category?: Array<{ id: string; name: string; slug: string }>;
+        country?: Array<{ id: string; name: string; slug: string }>;
+        episode_current: string;
+        actors: string[];
+        tmdb?: {
+            id?: string;
+            type?: string;
+            vote_average?: number;
+        };
+        trailer_url?: string;
+    };
+    episode: {
+        name: string;
+        link_m3u8: string;
+        link_vtt?: string;
+        subtitles?: SubtitleTrack[];
+    };
+    episodes: Array<{
+        server_name: string;
+        server_data: Array<{
+            name: string;
+            slug: string;
+            filename: string;
+            link_embed: string;
+            link_m3u8: string;
+        }>;
+    }>;
+    suggestedMovies: any[];
+}
+
+export default function WatchClient({
+    slug,
+    episodeSlug: initialEpisodeSlug,
+    movie: initialMovie,
+    episode: initialEpisode,
+    episodes,
+    suggestedMovies: initialSuggestions
+}: WatchClientProps) {
+    // 🌟 Local state for episode switching — avoids server re-render on episode change
+    const [currentEpisodeSlug, setCurrentEpisodeSlug] = useState(initialEpisodeSlug);
+    const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
+    const [movie, setMovie] = useState<any>(initialMovie);
+
+    // Sync from props only on full navigation (different slug or initial load)
+    useEffect(() => {
+        setCurrentEpisodeSlug(initialEpisodeSlug);
+        setCurrentEpisode(initialEpisode);
+    }, [initialEpisodeSlug, initialEpisode]);
+
+    const processedEpisodes = useMemo(() => {
+        if (!episodes) return [];
+        const list: typeof episodes = [];
+        const counts: Record<string, number> = {};
+        episodes.forEach(server => {
+            let originalName = server.server_name.toLowerCase();
+            let cleanName = "Vietsub";
+
+            // Remove source suffixes to avoid confusion with language shorthands
+            const baseName = originalName.replace(/( op| nc| vs| kk)$/, '').replace(/#\d+$/, '').trim();
+
+            const hasVietsub = baseName.includes('vietsub') || baseName.includes(' vs') || baseName.startsWith('vs') || originalName.includes('vietsub');
+            const hasThuyetMinh = baseName.includes('thuyết minh') || baseName.includes(' tm') || baseName.startsWith('tm') || originalName.includes('thuyết minh');
+            const hasLongTieng = baseName.includes('lồng tiếng') || baseName.includes(' lt') || baseName.startsWith('lt') || originalName.includes('lồng tiếng');
+            const hasRaw = baseName.includes('raw') || baseName.includes('nosub') || originalName.includes('raw');
+
+            // Nhận diện server đa bản audio (Vietsub + Lồng Tiếng / Thuyết Minh)
+            const hasEpLongTieng = server.server_data?.some((ep: any) => (ep.name || '').toLowerCase().includes('lồng tiếng') || (ep.slug || '').includes('long-tieng'));
+            const hasEpThuyetMinh = server.server_data?.some((ep: any) => (ep.name || '').toLowerCase().includes('thuyết minh') || (ep.slug || '').includes('thuyet-minh'));
+
+            if ((hasVietsub && hasLongTieng) || (hasLongTieng && hasEpLongTieng) || (hasVietsub && hasEpLongTieng)) {
+                cleanName = 'Vietsub + Lồng Tiếng';
+            } else if ((hasVietsub && hasThuyetMinh) || (hasThuyetMinh && hasEpThuyetMinh) || (hasVietsub && hasEpThuyetMinh)) {
+                cleanName = 'Vietsub + Thuyết Minh';
+            } else if (hasThuyetMinh) {
+                cleanName = 'Thuyết Minh';
+            } else if (hasLongTieng) {
+                cleanName = 'Lồng Tiếng';
+            } else if (hasRaw) {
+                cleanName = 'Raw';
+            }
+
+            if (originalName.includes(' op')) cleanName += ' OP';
+            else if (originalName.includes(' nc')) cleanName += ' NC';
+            else if (originalName.includes(' vs')) cleanName += ' VS';
+            else if (originalName.includes(' kk')) cleanName += ' KK';
+            else {
+                const sampleUrl = (server.server_data?.[0]?.link_m3u8 || server.server_data?.[0]?.link_embed || '').toLowerCase();
+                if (sampleUrl.includes('ophim') || sampleUrl.includes('opstream')) cleanName += ' OP';
+                else if (sampleUrl.includes('vsmov')) cleanName += ' VS';
+                else if (sampleUrl.includes('nguonc')) cleanName += ' NC';
+                else cleanName += ' KK';
+            }
+
+            counts[cleanName] = counts[cleanName] || 0;
+
+            if (server.server_data.some(ep => ep.link_m3u8)) {
+                counts[cleanName]++;
+                list.push({
+                    ...server,
+                    server_name: `${cleanName} #${counts[cleanName]}`,
+                    _isEmbed: false
+                } as any);
+            }
+            if (server.server_data.some(ep => ep.link_embed)) {
+                counts[cleanName]++;
+                list.push({
+                    ...server,
+                    server_name: `${cleanName} #${counts[cleanName]}`,
+                    _isEmbed: true
+                } as any);
+            }
+        });
+        return list;
+    }, [episodes]);
+
+    const isTrailerOnly = useMemo(() => {
+        return (movie.episode_current || '').toLowerCase().includes('trailer') ||
+            (movie.quality || '').toLowerCase().includes('trailer');
+    }, [movie.episode_current, movie.quality]);
+
+    const filteredSuggestions = useMemo(() => {
+        const seen = new Set();
+        return initialSuggestions.filter(m => {
+            if (!m.slug || seen.has(m.slug)) return false;
+            seen.add(m.slug);
+            return true;
+        });
+    }, [initialSuggestions]);
+    const router = useRouter();
+    const { user } = useAuth();
+
+    const settings = useSettingsStore();
+    const [isMounted, setIsMounted] = useState(false);
+    useEffect(() => { setIsMounted(true); }, []);
+
+    const isExpanded = isMounted ? settings.theaterMode : false;
+    const isTheaterMode = isMounted ? settings.theaterMode : false;
+    const isAutoNext = isMounted ? settings.autoNext : true;
+    const isAutoPlay = isMounted ? settings.autoPlay : true;
+
+    const setIsExpanded = (val: boolean) => { if (val !== settings.theaterMode) settings.toggleTheaterMode(); };
+    const setIsTheaterMode = (val: boolean) => { if (val !== settings.theaterMode) settings.toggleTheaterMode(); };
+    const setIsAutoNext = (val: boolean) => { if (val !== settings.autoNext) settings.toggleAutoNext(); };
+    // Persist server selection per movie slug (survives episode navigation within same movie)
+    const SERVER_PREF_KEY = `lofilm-server:${slug}`;
+    const [activeServerIndex, setActiveServerIndex] = useState(() => {
+        if (typeof window === 'undefined') return 0;
+        try {
+            const saved = sessionStorage.getItem(SERVER_PREF_KEY);
+            if (saved !== null) {
+                const idx = parseInt(saved, 10);
+                return isNaN(idx) ? 0 : idx;
+            }
+        } catch { }
+        return 0;
+    });
+    const [hasError, setHasError] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<"episodes" | "info" | "actors">("episodes");
+    const userRef = useRef<any>(null);
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }, [slug, currentEpisodeSlug]);
+
+    useEffect(() => { userRef.current = user; }, [user]);
+    const autoNextRef = useRef(isAutoNext);
+    useEffect(() => { autoNextRef.current = isAutoNext; }, [isAutoNext]);
+
+    const [hasResumed, setHasResumed] = useState(false);
+    const [showEndOverlay, setShowEndOverlay] = useState(false);
+    const showEndOverlayRef = useRef(false);
+    const [artContainer, setArtContainer] = useState<HTMLElement | null>(null);
+    const [subtitlePortalNode, setSubtitlePortalNode] = useState<HTMLElement | null>(null);
+    const artContainerRef = useRef<HTMLDivElement>(null);
+    const [tapState, setTapState] = useState<{
+        side: 'left' | 'right' | null;
+        accumulated: number;
+        ripples: Array<{ id: number; x: number; y: number }>;
+    }>({
+        side: null,
+        accumulated: 0,
+        ripples: []
+    });
+
+    const accumulatedSecondsRef = useRef<number>(0);
+    const activeSideRef = useRef<'left' | 'right' | null>(null);
+    const lastSeekTapTimeRef = useRef<number>(0);
+    const resetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const [isArtReady, setIsArtReady] = useState(false);
+    const [showEpisodeOverlay, setShowEpisodeOverlay] = useState(false);
+    const [isChangingEpisode, setIsChangingEpisode] = useState(false);
+    const [hasStartedPlaying, setHasStartedPlaying] = useState(false);
+    const fullscreenWrapperRef = useRef<HTMLDivElement>(null);
+    const [isIframeLoading, setIsIframeLoading] = useState(false);
+    const [tmdbActors, setTmdbActors] = useState<TMDBActor[]>([]);
+    const [isLoadingActors, setIsLoadingActors] = useState(false);
+
+    // Fetch Actors from TMDB or API peoples
+    useEffect(() => {
+        if (!slug) return;
+
+        const getActors = async () => {
+            setIsLoadingActors(true);
+            try {
+                if (movie.tmdb?.id) {
+                    const actors = await fetchActorsFromTMDB(
+                        movie.tmdb.id,
+                        (movie.tmdb.type as 'movie' | 'tv') || 'movie'
+                    );
+                    if (actors.length > 0) {
+                        setTmdbActors(actors);
+                        return;
+                    }
+                }
+
+                // Fallback gọi API peoples của phim nếu TMDB không có hoặc chưa cấu hình tmdb.id
+                const res = await fetch(`/api/proxy?url=${encodeURIComponent(`${INTERNAL_API_URL}/phim/${slug}/peoples`)}`);
+                const data = await res.json();
+                if (data.success || data.status === "success") {
+                    const peoples = data.data?.peoples;
+                    if (peoples && Array.isArray(peoples)) {
+                        const mappedActors = peoples.map((actor: any) => ({
+                            id: actor.tmdb_people_id || Math.random(),
+                            name: actor.name,
+                            profile_path: actor.profile_path,
+                            character: actor.character
+                        }));
+                        if (mappedActors.length > 0) {
+                            setTmdbActors(mappedActors);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch actors for Watch:", error);
+            } finally {
+                setIsLoadingActors(false);
+            }
+        };
+
+        getActors();
+    }, [slug, movie.tmdb?.id, movie.tmdb?.type]);
+
+    useEffect(() => { showEndOverlayRef.current = showEndOverlay; }, [showEndOverlay]);
+    const showEpisodeOverlayRef = useRef(showEpisodeOverlay);
+    useEffect(() => { showEpisodeOverlayRef.current = showEpisodeOverlay; }, [showEpisodeOverlay]);
+
+    const supabase = createClient();
+
+    const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
+    const containerCallbackRef = useCallback((node: HTMLDivElement | null) => {
+        if (node) setContainerNode(node);
+    }, []);
+
+    const handleServerChange = useCallback((index: number) => {
+        setActiveServerIndex(index);
+        try { sessionStorage.setItem(SERVER_PREF_KEY, String(index)); } catch { }
+        if (containerNode) {
+            containerNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [containerNode, SERVER_PREF_KEY]);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const hlsRef = useRef<Hls | null>(null);
+    const artRef = useRef<Artplayer | null>(null);
+    const fallbackTimeRef = useRef<number>(0);
+    const seekTargetRef = useRef<number | null>(null);
+    const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Subtitle management (must be after videoRef)
+    const episodeSubtitles = currentEpisode.subtitles || [];
+    const hasCustomSubtitles = episodeSubtitles.length > 0;
+    const {
+        slot1, slot2,
+        slot1Url, slot2Url,
+        setSlot1, setSlot2,
+    } = useSubtitleManager(episodeSubtitles);
+
+    // Parse + sync VTT for both overlays
+    const subtitle1Text = useVttOverlay(hasCustomSubtitles ? slot1Url : null, videoRef);
+    const subtitle2Text = useVttOverlay(hasCustomSubtitles ? slot2Url : null, videoRef);
+
+    const isEmbedServer = useMemo(() => {
+        const server = processedEpisodes[activeServerIndex] as any;
+        return server?._isEmbed || false;
+    }, [processedEpisodes, activeServerIndex]);
+
+    const currentIndex = useMemo(() => {
+        if (!processedEpisodes || processedEpisodes.length === 0) return -1;
+        const server = processedEpisodes[activeServerIndex] || processedEpisodes[0];
+
+        return server.server_data.findIndex((ep: any) => getFriendlyEpisodeSlug(ep.slug) === currentEpisodeSlug);
+    }, [processedEpisodes, activeServerIndex, currentEpisodeSlug]);
+
+    const nextEpisode = useMemo(() => {
+        if (!processedEpisodes || processedEpisodes.length === 0 || currentIndex === -1) return null;
+        const server = processedEpisodes[activeServerIndex] || processedEpisodes[0];
+        if (currentIndex < server.server_data.length - 1) {
+            return server.server_data[currentIndex + 1];
+        }
+        return null;
+    }, [processedEpisodes, activeServerIndex, currentIndex]);
+
+    const isSeries = useMemo(() => {
+        if (!processedEpisodes || processedEpisodes.length === 0) return false;
+        const server = processedEpisodes[0];
+        return server.server_data.length > 1;
+    }, [processedEpisodes]);
+
+    useEffect(() => {
+        setHasError(false);
+    }, [activeServerIndex, currentEpisodeSlug]);
+
+    const videoSrc = useMemo(() => {
+        let originalSrc = currentEpisode.link_m3u8;
+        if (processedEpisodes && processedEpisodes.length > 0) {
+            const server = processedEpisodes[activeServerIndex] || processedEpisodes[0];
+            const found = server.server_data.find((ep) => getFriendlyEpisodeSlug(ep.slug) === currentEpisodeSlug);
+            if (found) {
+                originalSrc = found.link_m3u8;
+            } else {
+                for (const s of processedEpisodes) {
+                    const f = s.server_data.find((ep) => getFriendlyEpisodeSlug(ep.slug) === currentEpisodeSlug);
+                    if (f) {
+                        originalSrc = f.link_m3u8;
+                        break;
+                    }
+                }
+            }
+        }
+        return originalSrc;
+    }, [activeServerIndex, currentEpisodeSlug, processedEpisodes, currentEpisode.link_m3u8]);
+
+    const embedSrc = useMemo(() => {
+        if (!isEmbedServer) return null;
+        const server = processedEpisodes[activeServerIndex];
+        const found = server?.server_data.find((ep) => getFriendlyEpisodeSlug(ep.slug) === currentEpisodeSlug);
+        return found?.link_embed || null;
+    }, [isEmbedServer, processedEpisodes, activeServerIndex, currentEpisodeSlug]);
+
+    const isTrailerEpisode = useMemo(() => {
+        const epName = (currentEpisode.name || '').toLowerCase();
+        return epName === 'trailer' || epName.includes('trailer') || currentEpisodeSlug.includes('trailer');
+    }, [currentEpisode.name, currentEpisodeSlug]);
+
+    // Check if the episode's source is a YouTube link
+    const episodeYouTubeId = useMemo(() => {
+        const fromEpisodeSrc = getYouTubeId(videoSrc || '');
+        if (fromEpisodeSrc) return fromEpisodeSrc;
+        return getYouTubeId(embedSrc || '');
+    }, [videoSrc, embedSrc]);
+
+    // The active trailer ID to show in the player
+    const activeTrailerId = useMemo(() => {
+        // If the episode source itself is a YouTube link, use it
+        if (episodeYouTubeId) return episodeYouTubeId;
+
+        // Kiểm tra xem phim có "đang là trailer" không (dựa trên episode_current)
+        const isMovieCurrentlyTrailer = (movie.episode_current || '').toLowerCase().includes('trailer') ||
+            (movie.quality || '').toLowerCase().includes('trailer');
+
+        // Nếu tập phim là trailer, HOẶC bản thân phim đang ở trạng thái trailer -> dùng link trailer của phim
+        if (isTrailerEpisode || isMovieCurrentlyTrailer) return getYouTubeId(movie.trailer_url || '');
+
+        // Otherwise, it's a normal episode, do not show trailer
+        return null;
+    }, [episodeYouTubeId, isTrailerEpisode, movie.trailer_url, movie.episode_current, movie.quality]);
+
+    const isTrailerMode = !!activeTrailerId;
+
+    const trailerEmbedSrc = useMemo(() => {
+        if (!activeTrailerId) return null;
+        return `https://www.youtube.com/embed/${activeTrailerId}?autoplay=1&rel=0&modestbranding=1&controls=1`;
+    }, [activeTrailerId]);
+
+    useEffect(() => {
+        if (embedSrc) setIsIframeLoading(true);
+    }, [embedSrc]);
+
+    useEffect(() => {
+        setShowEndOverlay(false);
+        setIsChangingEpisode(false);
+        fallbackTimeRef.current = 0;
+    }, [currentEpisodeSlug]);
+
+    // Bỏ localStorage cũ của autoNext vì đã dùng Zustand
+
+
+    // State lưu trữ mapping ảnh từng tập từ TMDB: { [episode_number]: still_image_url }
+    const [episodeThumbnails, setEpisodeThumbnails] = useState<Record<number, string>>({});
+
+    useEffect(() => {
+        const loadEpisodeThumbnails = async () => {
+            if (!movie?.tmdb?.id) return;
+            const tmdbId = movie.tmdb.id;
+            const season = movie.tmdb.season || 1;
+            const thumbs = await fetchSeasonEpisodesFromTMDB(tmdbId, season);
+            if (thumbs && Object.keys(thumbs).length > 0) {
+                setEpisodeThumbnails(thumbs);
+            }
+        };
+        loadEpisodeThumbnails();
+    }, [slug, movie?.tmdb?.id, movie?.tmdb?.season]);
+
+    useEffect(() => {
+        const correctMainMovie = async () => {
+            const curNum = parseInt(movie.episode_current?.match(/\d+/)?.[0] || "0");
+            const totNum = parseInt(String(movie.episode_total ?? "").match(/\d+/)?.[0] || "1000");
+
+            if (curNum > totNum && movie.tmdb?.id && movie.tmdb.type === "tv") {
+                const tmdbTotal = await fetchTotalEpisodesFromTMDB(movie.tmdb.id);
+                if (tmdbTotal && tmdbTotal >= curNum) {
+                    setMovie((prev: any) => ({
+                        ...prev,
+                        episode_total: tmdbTotal.toString()
+                    }));
+                }
+            }
+        };
+        correctMainMovie();
+    }, [slug]);
+
+    const toggleFullscreen = useCallback(() => {
+        const wrapper = fullscreenWrapperRef.current;
+        if (!wrapper) return;
+
+        // ─── iOS Safari: Gọi native fullscreen trực tiếp trên thẻ <video> ───
+        // iOS không support fullscreen trên thẻ <div>, nhưng support trên thẻ <video>
+        if (isIOSDevice() && artRef.current?.video) {
+            const video = artRef.current.video as any;
+            if (video.webkitEnterFullscreen) {
+                video.webkitEnterFullscreen();
+                return;
+            }
+        }
+
+        // Check nếu đang ở native fullscreen (tất cả prefix)
+        const isNativeFullscreen = !!(
+            document.fullscreenElement ||
+            (document as any).webkitFullscreenElement ||
+            (document as any).mozFullScreenElement ||
+            (document as any).msFullscreenElement
+        );
+
+        if (isNativeFullscreen) {
+            // Exit native fullscreen
+            const exitFn =
+                document.exitFullscreen?.bind(document) ||
+                (document as any).webkitExitFullscreen?.bind(document) ||
+                (document as any).mozCancelFullScreen?.bind(document) ||
+                (document as any).msExitFullscreen?.bind(document);
+            if (exitFn) exitFn().catch?.(() => { });
+        } else if (isCSSFullscreenRef.current) {
+            // Exit CSS fallback fullscreen
+            setIsCSSFullscreen(false);
+        } else {
+            // Thử native fullscreen với đầy đủ prefix
+            const requestFn =
+                wrapper.requestFullscreen?.bind(wrapper) ||
+                (wrapper as any).webkitRequestFullscreen?.bind(wrapper) ||
+                (wrapper as any).mozRequestFullScreen?.bind(wrapper) ||
+                (wrapper as any).msRequestFullscreen?.bind(wrapper);
+
+            if (requestFn) {
+                Promise.resolve(requestFn()).catch(() => {
+                    // Native API bị block (Telegram, Threads WebView) → fallback sang CSS fullscreen
+                    setIsCSSFullscreen(true);
+                });
+            } else {
+                // API hoàn toàn không có → dùng CSS fullscreen
+                setIsCSSFullscreen(true);
+            }
+        }
+    }, []);
+
+    const toggleAutoNext = useCallback(() => {
+        settings.toggleAutoNext();
+    }, [settings]);
+
+    const { isFavorited, toggleFavorite } = useFavorites(
+        slug,
+        movie.name,
+        movie.poster_url,
+        movie.thumb_url
+    );
+
+    const { isInWatchlist, toggleWatchlist } = useWatchlist(
+        user,
+        slug,
+        movie.name,
+        movie.poster_url,
+        movie.thumb_url
+    );
+
+    const { saveProgress, handleTimeUpdate } = useWatchProgress(
+        user,
+        slug,
+        currentEpisodeSlug,
+        movie,
+        currentEpisode
+    );
+
+    // Refs to keep callback references stable inside the Artplayer player initialization closure
+    const saveProgressRef = useRef(saveProgress);
+    const handleTimeUpdateRef = useRef(handleTimeUpdate);
+    useEffect(() => {
+        saveProgressRef.current = saveProgress;
+        handleTimeUpdateRef.current = handleTimeUpdate;
+    }, [saveProgress, handleTimeUpdate]);
+
+    // 🌟 Episode selection handler — avoids server re-render
+    const selectEpisode = useCallback((epSlug: string) => {
+        if (epSlug === currentEpisodeSlug) return;
+
+        // Update URL silently
+        const newUrl = `/phim/${slug}/${epSlug}`;
+        window.history.replaceState(null, '', newUrl);
+
+        // Ưu tiên tìm tập trong server ĐANG ACTIVE để giữ nguyên lựa chọn server
+        let newEpisode = null;
+        let targetServerIndex = activeServerIndex;
+
+        const currentServer = processedEpisodes[activeServerIndex];
+        if (currentServer) {
+            const found = currentServer.server_data.find((ep: any) => getFriendlyEpisodeSlug(ep.slug) === epSlug);
+            if (found) {
+                newEpisode = found;
+                // Giữ nguyên targetServerIndex = activeServerIndex
+            }
+        }
+
+        // Fallback: tìm ở các server khác nếu server hiện tại không có tập này
+        if (!newEpisode) {
+            for (let i = 0; i < processedEpisodes.length; i++) {
+                if (i === activeServerIndex) continue; // đã thử rồi
+                const server = processedEpisodes[i];
+                const found = server.server_data.find((ep: any) => getFriendlyEpisodeSlug(ep.slug) === epSlug);
+                if (found) {
+                    newEpisode = found;
+                    targetServerIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (!newEpisode) return;
+
+        setActiveServerIndex(targetServerIndex);
+        setIsChangingEpisode(true);
+        setCurrentEpisodeSlug(epSlug);
+        setCurrentEpisode({
+            name: newEpisode.name,
+            link_m3u8: newEpisode.link_m3u8,
+            link_vtt: (newEpisode as any).link_vtt || '',
+            subtitles: (newEpisode as any).subtitles || [],
+        });
+    }, [slug, currentEpisodeSlug, processedEpisodes, activeServerIndex]);
+
+    // Navigate to next episode (auto-next)
+    const goToNextEpisode = useCallback(() => {
+        if (!nextEpisode) return;
+        selectEpisode(getFriendlyEpisodeSlug(nextEpisode.slug));
+    }, [nextEpisode, selectEpisode]);
+
+    useEffect(() => {
+        if (isEmbedServer || isTrailerMode) return;
+
+        let isMounted = true;
+        const container = artContainerRef.current;
+        if (!container) return;
+
+        const initTimeout = setTimeout(async () => {
+            if (!isMounted || !container) return;
+            let startFrom = fallbackTimeRef.current;
+            const isFallbackResume = startFrom > 0;
+            if (startFrom === 0 && !hasResumed) {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser) {
+                    const { data: history } = await supabase
+                        .from('watch_history')
+                        .select('watched_seconds')
+                        .eq('user_id', currentUser.id)
+                        .eq('movie_slug', slug)
+                        .eq('episode_slug', currentEpisodeSlug)
+                        .maybeSingle();
+                    if (history && history.watched_seconds > 10) {
+                        startFrom = history.watched_seconds;
+                    }
+                }
+
+                if (startFrom <= 10) {
+                    try {
+                        const HISTORY_KEY = currentUser ? `lofilm-watch-history-${currentUser.id}` : 'lofilm-guest-watch-history';
+                        const historyStr = localStorage.getItem(HISTORY_KEY);
+                        if (historyStr) {
+                            const history = JSON.parse(historyStr);
+                            const item = history[`${slug}/${currentEpisodeSlug}`];
+                            if (item && item.watched_seconds > 10) {
+                                startFrom = item.watched_seconds;
+                            }
+                        }
+                    } catch (e) { }
+                }
+            }
+
+            if (!isMounted) return;
+
+            const art = new Artplayer({
+                container: container,
+                url: videoSrc,
+                theme: '#D497FF',
+                volume: 1,
+                isLive: false,
+                muted: false,
+                autoplay: useSettingsStore.getState().autoPlay,
+                pip: true,
+                autoSize: false,
+                autoMini: false,
+                setting: true,
+                loop: false,
+                flip: true,
+                playbackRate: true,
+                aspectRatio: true,
+                fullscreen: false,
+                fullscreenWeb: false,
+                subtitleOffset: true,
+                miniProgressBar: false,
+                mutex: true,
+                backdrop: true,
+                playsInline: true,
+                autoPlayback: false,
+                airplay: false,
+                hotkey: false,
+                lock: true,
+                gesture: false,
+                ...({ tooltips: false } as any),
+                poster: getImageUrl(movie.thumb_url, { width: 1280, quality: 85 }),
+                icons: {
+                    loading: '<img src="/images/ploading.gif">',
+                    state: '<img width="150" height="150" src="/images/state.svg">',
+                    indicator: '<img width="16" height="16" src="/images/indicator.svg">',
+                    play: '<img style="width: 40px; height: 40px;" class="sm:w-16 sm:h-16" src="https://sf-static.onflixcdn.com/images/svg/1760902371_play-circle-svgrepo-com.svg">',
+                    pause: '<img style="width: 40px; height: 40px;" class="sm:w-16 sm:h-16" src="https://sf-static.onflixcdn.com/images/svg/1760902631_pause-circle-svgrepo-com.svg">',
+                    fullscreen: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" class="icon" viewBox="0 0 1024 1024"><path d="M625.778 256H768v142.222h113.778v-256h-256ZM256 398.222V256h142.222V142.222h-256v256Zm512 227.556V768H625.778v113.778h256v-256ZM398.222 768H256V625.778H142.222v256h256Z"></path></svg>',
+                    fullscreenExit: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" class="icon" viewBox="0 0 1024 1024"><path d="M768 298.667h170.667V384h-256V128H768ZM341.333 384h-256v-85.333H256V128h85.333ZM768 725.333V896h-85.333V640h256v85.333ZM341.333 640v256H256V725.333H85.333V640Z"></path></svg>',
+                    setting: '<div style="position:relative;display:flex;align-items:center;justify-content:center;width:32px;height:32px;cursor:pointer;"><img src="https://sf-static.onflixcdn.com/images/svg/1773141205_setting_flix.svg?v=2" style="width:24px;height:24px;object-fit:contain;opacity:0.85;transition:opacity 0.15s;" onmouseover="this.style.opacity=\'1\'" onmouseout="this.style.opacity=\'0.85\'"></div>',
+                },
+                customType: {
+                    m3u8: function (video, url, art) {
+                        if (Hls.isSupported()) {
+                            if (art.hls) (art.hls as Hls).destroy();
+                            const hls = new Hls({
+                                startPosition: startFrom > 0 ? startFrom : -1,
+                                enableWorker: true,
+                            });
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                            art.hls = hls;
+                            hlsRef.current = hls;
+
+                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                if (!hasCustomSubtitles && currentEpisode.link_vtt) {
+                                    const existingTracks = video.querySelectorAll('track');
+                                    existingTracks.forEach(t => t.remove());
+
+                                    const track = document.createElement('track');
+                                    track.kind = 'captions';
+                                    track.label = 'Vietnamese';
+                                    track.srclang = 'vi';
+                                    track.src = currentEpisode.link_vtt;
+                                    track.default = true;
+                                    video.appendChild(track);
+                                }
+                            });
+
+                            hls.on(Hls.Events.ERROR, (event, data) => {
+                                if (data.fatal) {
+                                    setHasError(true);
+                                    switch (data.type) {
+                                        case Hls.ErrorTypes.NETWORK_ERROR:
+                                            hls.startLoad();
+                                            break;
+                                        case Hls.ErrorTypes.MEDIA_ERROR:
+                                            hls.recoverMediaError();
+                                            break;
+                                    }
+                                }
+                            });
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = url;
+                            if (startFrom > 0) {
+                                const onLoadedMetadata = () => {
+                                    video.currentTime = startFrom;
+                                };
+                                video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+                            }
+                        }
+                    }
+                },
+                controls: [
+                    {
+                        position: 'left',
+                        html: '<div class="art-control-skip desktop-skip-btn"><img class="w-5 h-5 sm:w-6 sm:h-6" src="https://sf-static.onflixcdn.com/images/svg/1756189000_-10.svg"></div>',
+                        index: 11,
+                        click: function () { this.forward = -10; }
+                    },
+                    {
+                        position: 'left',
+                        html: '<div class="art-control-skip desktop-skip-btn"><img class="w-5 h-5 sm:w-6 sm:h-6" src="https://sf-static.onflixcdn.com/images/svg/1756189026_+10.svg"></div>',
+                        index: 12,
+                        click: function () { this.forward = 10; }
+                    },
+                    {
+                        position: 'right',
+                        html: '<div id="custom-subtitle-portal-target" class="flex items-center"></div>',
+                        index: 10,
+                    },
+                    {
+                        position: 'right',
+                        html: '<div id="custom-fullscreen-btn" class="art-control art-control-fullscreen hint--rounded hint--top" data-index="70" aria-label="Fullscreen"><i class="art-icon art-icon-fullscreenOn" style="display: inline-flex;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" class="icon" viewBox="0 0 1024 1024"><path d="M625.778 256H768v142.222h113.778v-256h-256ZM256 398.222V256h142.222V142.222h-256v256Zm512 227.556V768H625.778v113.778h256v-256ZM398.222 768H256V625.778H142.222v256h256Z"></path></svg></i><i class="art-icon art-icon-fullscreenOff" style="display: none;"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" class="icon" viewBox="0 0 1024 1024"><path d="M768 298.667h170.667V384h-256V128H768ZM341.333 384h-256v-85.333H256V128h85.333ZM768 725.333V896h-85.333V640h256v85.333ZM341.333 640v256H256V725.333H85.333V640Z"></path></svg></i></div>',
+                        index: 70,
+                        click: function () {
+                            const event = new CustomEvent('art-fullscreen-toggle');
+                            window.dispatchEvent(event);
+                        }
+                    },
+                    ...(nextEpisode ? [{
+                        position: 'right',
+                        html: '<div class="art-control art-control-next hint--rounded hint--top" data-index="15" aria-label="Tập tiếp theo"><i class="art-icon" style="display: flex; align-items: center; justify-content: center;"><img class="w-5 h-5 sm:w-6 sm:h-6" src="https://sf-static.onflixcdn.com/images/svg/1772478616_next-svgrepo-com_flix.svg"></i></div>',
+                        index: 15,
+                        click: function () {
+                            const event = new CustomEvent('art-next-episode');
+                            window.dispatchEvent(event);
+                        }
+                    }] : [])
+                ]
+            });
+
+            artRef.current = art;
+            videoRef.current = art.video;
+            setIsArtReady(true);
+
+            art.on('ready', () => {
+                setArtContainer(art.template.$player);
+                const portalNode = art.template.$player.querySelector('#custom-subtitle-portal-target') as HTMLElement;
+                if (portalNode) {
+                    setSubtitlePortalNode(portalNode);
+                }
+
+                if (startFrom > 0 && (!hasResumed || isFallbackResume)) {
+                    if (isFallbackResume) {
+                        toast.success(`Đang tự động đổi máy chủ...`, { icon: '🔄', duration: 2500 });
+                        fallbackTimeRef.current = 0;
+                    } else {
+                        toast.success(`Đã khôi phục vị trí xem cũ: ${Math.floor(startFrom / 60)} phút`, { icon: '🕒', duration: 2500 });
+                    }
+                    if (!hasResumed) setHasResumed(true);
+                }
+            });
+
+            art.on('play', () => {
+                if (showEndOverlayRef.current) {
+                    setTimeout(() => { if (artRef.current && showEndOverlayRef.current) artRef.current.pause(); }, 10);
+                }
+            });
+
+            art.on('pause', () => {
+                if (artRef.current) {
+                    saveProgressRef.current(artRef.current.currentTime, artRef.current.duration, true);
+                }
+            });
+
+            art.on('playing', () => { setHasStartedPlaying(true); setHasError(false); });
+
+            art.on('video:timeupdate', () => {
+                if (!artRef.current) return;
+                handleTimeUpdateRef.current(artRef.current.currentTime, artRef.current.duration, artRef.current.video.paused);
+            });
+
+            art.on('video:seeked', () => {
+                if (!artRef.current) return;
+                const duration = artRef.current.duration;
+                const currentTime = artRef.current.currentTime;
+                if (duration > 0 && currentTime >= duration - 0.5) {
+                    if (isSeries && nextEpisode && autoNextRef.current) {
+                        setTimeout(() => {
+                            if (artRef.current) artRef.current.pause();
+                        }, 10);
+                        setIsChangingEpisode(true);
+                        goToNextEpisode();
+                    } else if (!showEndOverlayRef.current) {
+                        setTimeout(() => {
+                            if (artRef.current) {
+                                artRef.current.pause();
+                                artRef.current.currentTime = duration - 0.1;
+                            }
+                        }, 10);
+                        setShowEndOverlay(true);
+                    }
+                }
+            });
+
+            art.on('video:ended', () => {
+                if (isSeries && nextEpisode && autoNextRef.current) {
+                    setIsChangingEpisode(true);
+                    goToNextEpisode();
+                } else if (!showEndOverlayRef.current) {
+                    setTimeout(() => {
+                        if (artRef.current) {
+                            artRef.current.pause();
+                            artRef.current.currentTime = artRef.current.duration - 0.1;
+                        }
+                    }, 10);
+                    setShowEndOverlay(true);
+                }
+            });
+
+        }, 100);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(initTimeout);
+            if (artRef.current) {
+                try {
+                    const video = artRef.current.video;
+                    if (video) {
+                        video.pause();
+                        video.removeAttribute('src');
+                        video.load();
+                    }
+                    artRef.current.destroy(true);
+                } catch (e) { }
+                artRef.current = null;
+                setArtContainer(null);
+            }
+            if (hlsRef.current) {
+                try { hlsRef.current.destroy(); } catch (e) { }
+                hlsRef.current = null;
+            }
+        };
+    }, [videoSrc, nextEpisode, slug, isEmbedServer, goToNextEpisode]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return;
+
+            const player = artRef.current;
+            if (!player) return;
+
+            const code = e.code;
+
+            switch (code) {
+                case 'Space':
+                case 'KeyK':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    player.toggle();
+                    break;
+                case 'ArrowRight':
+                case 'KeyL':
+                    e.preventDefault();
+                    player.forward = 10;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyJ':
+                    e.preventDefault();
+                    player.backward = 10;
+                    break;
+                case 'KeyF':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'KeyM':
+                    e.preventDefault();
+                    player.muted = !player.muted;
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    player.volume = Math.min(1, player.volume + 0.1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    player.volume = Math.max(0, player.volume - 0.1);
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown, { capture: true });
+        return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    }, []);
+
+    // 🌟 Double-tap gesture for mobile/tablet: left 40% → backward seek (with accumulation), right 40% → forward seek (with accumulation)
+    useEffect(() => {
+        const container = artContainerRef.current;
+        if (!container || isEmbedServer) return;
+
+        let lastTapTime = 0;
+        let lastTapX = 0;
+
+        const handleTouchStart = (e: TouchEvent) => {
+            if (e.touches.length !== 1) return;
+
+            const now = Date.now();
+            const touch = e.touches[0];
+            const tapX = touch.clientX;
+            const rect = container.getBoundingClientRect();
+            const x = tapX - rect.left;
+            const y = touch.clientY - rect.top;
+            const ratio = x / rect.width;
+
+            // Define seek zones (left 30% and right 30%). The remaining 40% in the middle is neutral (play/pause).
+            const side: 'left' | 'right' | null = ratio < 0.30 ? 'left' : ratio > 0.70 ? 'right' : null;
+            const player = artRef.current;
+            if (!player) return;
+
+            if (!side) {
+                // Middle zone tap
+                lastTapTime = now;
+                lastTapX = tapX;
+                return;
+            }
+
+            const isDoubleTap = (now - lastTapTime < 300) && (Math.abs(tapX - lastTapX) < 40);
+            const isContinuation = activeSideRef.current === side && (now - lastSeekTapTimeRef.current < 800);
+
+            if (isDoubleTap || isContinuation) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                let newAccumulated = 10;
+                if (isContinuation) {
+                    newAccumulated = accumulatedSecondsRef.current + 10;
+                }
+
+                // Perform seek
+                if (side === 'left') {
+                    player.backward = 10;
+                } else {
+                    player.forward = 10;
+                }
+
+                accumulatedSecondsRef.current = newAccumulated;
+                activeSideRef.current = side;
+                lastSeekTapTimeRef.current = now;
+
+                // Reset standard double tap detection
+                lastTapTime = 0;
+                lastTapX = 0;
+
+                // Generate a unique ripple ID
+                const rippleId = now + Math.random();
+
+                setTapState(prev => ({
+                    side,
+                    accumulated: newAccumulated,
+                    ripples: [...prev.ripples, { id: rippleId, x, y }].slice(-3)
+                }));
+
+                // Auto-remove ripple after animation finishes (500ms)
+                setTimeout(() => {
+                    setTapState(prev => ({
+                        ...prev,
+                        ripples: prev.ripples.filter(r => r.id !== rippleId)
+                    }));
+                }, 500);
+
+                // Reset seek accumulator and active side after 500ms of inactivity
+                if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+                resetTimeoutRef.current = setTimeout(() => {
+                    setTapState(prev => ({ ...prev, side: null, accumulated: 0 }));
+                    accumulatedSecondsRef.current = 0;
+                    activeSideRef.current = null;
+                }, 500);
+            } else {
+                lastTapTime = now;
+                lastTapX = tapX;
+            }
+        };
+
+        container.addEventListener('touchstart', handleTouchStart, { passive: false });
+        return () => {
+            container.removeEventListener('touchstart', handleTouchStart);
+            if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current);
+        };
+    }, [isEmbedServer]);
+
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    // CSS fallback fullscreen cho WebView (Telegram, Threads) không hỗ trợ native Fullscreen API
+    const [isCSSFullscreen, setIsCSSFullscreen] = useState(false);
+    const isCSSFullscreenRef = useRef(false);
+    useEffect(() => { isCSSFullscreenRef.current = isCSSFullscreen; }, [isCSSFullscreen]);
+    // State tổng hợp — dùng cái này thay vì isFullscreen trong toàn bộ JSX
+    const isFullscreenActive = isFullscreen || isCSSFullscreen;
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const isFs = !!(
+                document.fullscreenElement ||
+                (document as any).webkitFullscreenElement ||
+                (document as any).mozFullScreenElement ||
+                (document as any).msFullscreenElement
+            );
+            setIsFullscreen(isFs);
+            // Khi native fullscreen được exit (ví dụ user nhấn Esc trên Chrome), tắt luôn CSS fallback nếu có
+            if (!isFs) setIsCSSFullscreen(false);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (isTheaterMode) document.body.classList.add('theater-mode');
+        else document.body.classList.remove('theater-mode');
+        return () => document.body.classList.remove('theater-mode');
+    }, [isTheaterMode]);
+
+    useEffect(() => {
+        if (isFullscreenActive) {
+            document.documentElement.classList.add('fullscreen-scrollbar-fix');
+            const orientation = (screen as any).orientation;
+            if (orientation && typeof orientation.lock === 'function') {
+                orientation.lock('landscape').catch(() => { });
+            }
+        } else {
+            document.documentElement.classList.remove('fullscreen-scrollbar-fix');
+            const orientation = (screen as any).orientation;
+            if (orientation && typeof orientation.unlock === 'function') {
+                try { orientation.unlock(); } catch (e) { }
+            }
+        }
+        // Gọi resize cho ArtPlayer khi chuyển fullscreen
+        const resizeTimer = setTimeout(() => {
+            if (artRef.current) {
+                try { (artRef.current as any).resize?.(); } catch (e) { }
+            }
+        }, 150);
+        return () => {
+            clearTimeout(resizeTimer);
+            document.documentElement.classList.remove('fullscreen-scrollbar-fix');
+            const orientation = (screen as any).orientation;
+            if (orientation && typeof orientation.unlock === 'function') {
+                try { orientation.unlock(); } catch (e) { }
+            }
+        };
+    }, [isFullscreenActive]);
+
+    // Lắng nghe sự kiện xoay màn hình và resize cửa sổ để tự động điều chỉnh ArtPlayer
+    useEffect(() => {
+        const handleScreenResize = () => {
+            if (artRef.current) {
+                try { (artRef.current as any).resize?.(); } catch (e) { }
+            }
+        };
+        window.addEventListener('resize', handleScreenResize);
+        window.addEventListener('orientationchange', handleScreenResize);
+        return () => {
+            window.removeEventListener('resize', handleScreenResize);
+            window.removeEventListener('orientationchange', handleScreenResize);
+        };
+    }, []);
+
+    // Handle Escape key để thoát CSS fullscreen (WebView không có native Esc behavior)
+    useEffect(() => {
+        if (!isCSSFullscreen) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setIsCSSFullscreen(false);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isCSSFullscreen]);
+
+
+
+    // Listen for custom fullscreen toggle event from ArtPlayer
+    useEffect(() => {
+        const handler = () => toggleFullscreen();
+        window.addEventListener('art-fullscreen-toggle', handler);
+        return () => window.removeEventListener('art-fullscreen-toggle', handler);
+    }, [toggleFullscreen]);
+
+    useEffect(() => {
+        const handler = () => goToNextEpisode();
+        window.addEventListener('art-next-episode', handler);
+        return () => window.removeEventListener('art-next-episode', handler);
+    }, [goToNextEpisode]);
+
+    useEffect(() => {
+        if (showEpisodeOverlay) {
+            const activeEl = document.getElementById('active-episode');
+            const container = document.getElementById('episode-list-container');
+            if (activeEl && container) {
+                setTimeout(() => {
+                    const targetScroll = activeEl.offsetTop - container.offsetHeight / 2 + activeEl.offsetHeight / 2;
+                    container.scrollTo({
+                        top: targetScroll,
+                        behavior: 'auto'
+                    });
+                }, 100);
+            }
+        }
+    }, [showEpisodeOverlay, currentEpisodeSlug, activeServerIndex]);
+
+    if (!movie || !currentEpisode) return null;
+
+    const portalTarget = isEmbedServer ? containerNode : artContainer;
+
+    return (
+        <div className={`${isFullscreenActive ? 'fixed inset-0 z-[99999] bg-black p-0 m-0 w-screen h-screen overflow-hidden' : 'pt-27 pb-12 min-h-screen relative'} transition-all duration-300 animate-fade-in`}>
+
+            {/* Movie Header / Back Button */}
+            {!isFullscreenActive && (
+                <div className="transition-all duration-500 ease-in-out opacity-100 translate-y-0">
+                    <MovieHeader slug={slug} movieName={movie.name} episodeName={currentEpisode.name} />
+                </div>
+            )}
+
+            {/* === VIDEO PLAYER & CONTROLS SECTION === */}
+            <div className={`w-full ${isFullscreenActive ? '!max-w-none !p-0 !m-0 !w-full !h-full' : 'max-w-[1440px] 2xl:max-w-[1560px] px-3 sm:px-5 lg:px-8 mx-auto'}`}>
+                <div ref={fullscreenWrapperRef} className={`transition-all duration-300 relative w-full ${isFullscreenActive ? '!max-w-none !m-0 !fixed !inset-0 !z-[99999] !w-full !h-full !p-0 bg-black' : ''}`} style={isFullscreenActive ? { padding: 'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)', backgroundColor: '#000' } : undefined}>
+                    <div ref={containerCallbackRef} className={`watch-player-container w-full bg-black/40 border border-white/5 relative overflow-hidden transition-all duration-300 z-10 ${showEndOverlay ? 'hide-large-play' : ''} [--plyr-color-main:#f59e0b] ${isFullscreenActive ? '!rounded-none !border-0 !w-full !h-full !max-w-none !max-h-none !aspect-auto' : 'aspect-video w-full max-w-full lg:max-h-[calc(100vh-210px)] lg:max-w-[calc((100vh-210px)*16/9)] mx-auto rounded-2xl'}`}>
+                        <style jsx global>{`
+                        @media (max-height: 600px) {
+                            .watch-player-container {
+                                max-height: none !important;
+                                max-width: 100% !important;
+                                width: 100% !important;
+                            }
+                        }
+
+                        .art-video-player .art-bottom {
+                            z-index: 50 !important;
+                        }
+                        .art-video-player .art-layer {
+                            z-index: 40 !important;
+                        }
+                        .watch-top-overlay {
+                            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                        }
+                        .art-hide-cursor .watch-top-overlay {
+                            opacity: 0 !important;
+                            pointer-events: none !important;
+                            transform: translateY(-10px) !important;
+                        }
+                        .art-video-player:not(.art-hide-cursor) .watch-top-overlay {
+                            opacity: 1 !important;
+                            transform: translateY(0) !important;
+                            pointer-events: auto !important;
+                        }
+                        
+                        /* Native Fullscreen & Custom Fullscreen styles */
+                        :fullscreen,
+                        ::backdrop {
+                            background-color: #000 !important;
+                        }
+                        :fullscreen .art-video-player,
+                        :fullscreen .art-video-player video,
+                        .video-fullscreen-active .art-video-player,
+                        .video-fullscreen-active .art-video-player video {
+                            width: 100% !important;
+                            height: 100% !important;
+                            max-width: none !important;
+                            max-height: none !important;
+                        }
+                        
+                        /* Thêm style cho iOS fullscreen active trên body */
+                        body.ios-fullscreen-active > header,
+                        body.ios-fullscreen-active > footer,
+                        body.ios-fullscreen-active > div:not([class*="video-fullscreen-active"]) {
+                            display: none !important;
+                        }
+                        
+                        body.ios-fullscreen-active main {
+                           z-index: 9999;
+                        }
+
+                        .art-video-player .art-notice {
+                            display: none !important;
+                        }
+
+                        /* === FADE MƯỢT CHO TOÀN BỘ CONTROLS NHƯ NETFLIX/YOUTUBE === */
+                        /** Chỉ set transition duration - Artplayer tự xử lý show/hide + fade với transition: all sẵn có */
+                        .art-video-player {
+                            --art-transition-duration: 0.35s !important;
+                        }
+
+                        /* Trên mobile/tablet, dịch cụm controls trái vào trong để nút play không bị tràn ra ngoài mép progress bar */
+                        @media (max-width: 1024px) {
+                            .art-controls-left {
+                                padding-left: 8px !important;
+                            }
+                        }
+                        @media (max-width: 640px) {
+                            .art-controls-left {
+                                padding-left: 4px !important;
+                            }
+                        }
+
+                        /* Ẩn nút tua 10s trên mobile dọc (portrait) */
+                        @media (max-width: 768px) and (orientation: portrait) {
+                            .art-control[data-index="11"],
+                            .art-control[data-index="12"] {
+                                display: none !important;
+                                width: 0 !important;
+                                min-width: 0 !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                overflow: hidden !important;
+                                flex: 0 0 0 !important;
+                            }
+                        }
+
+                        /* === CUSTOM DOUBLE-TAP RIPPLE & BUBBLE ANIMATIONS === */
+                        @keyframes ripple-expand {
+                            0% {
+                                width: 0px;
+                                height: 0px;
+                                opacity: 0.55;
+                            }
+                            100% {
+                                width: 250px;
+                                height: 250px;
+                                opacity: 0;
+                            }
+                        }
+                        .animate-ripple-expand {
+                            animation: ripple-expand 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+                            will-change: transform, opacity;
+                        }
+
+                        @keyframes bubble-pop-in {
+                            0% {
+                                transform: translate(-50%, -50%) scale(0.65);
+                                opacity: 0;
+                            }
+                            60% {
+                                transform: translate(-50%, -50%) scale(1.08);
+                                opacity: 1;
+                            }
+                            100% {
+                                transform: translate(-50%, -50%) scale(1);
+                                opacity: 1;
+                            }
+                        }
+                        .animate-bubble-pop-in {
+                            animation: bubble-pop-in 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+                        }
+
+                        @keyframes arrow-flash-right {
+                            0% { opacity: 0.15; transform: translateX(-3px); }
+                            50% { opacity: 1; transform: translateX(3px); }
+                            100% { opacity: 0.15; transform: translateX(-3px); }
+                        }
+                        .arrow-right-1 {
+                            animation: arrow-flash-right 0.6s infinite;
+                            animation-delay: 0s;
+                        }
+                        .arrow-right-2 {
+                            animation: arrow-flash-right 0.6s infinite;
+                            animation-delay: 0.12s;
+                        }
+                        .arrow-right-3 {
+                            animation: arrow-flash-right 0.6s infinite;
+                            animation-delay: 0.24s;
+                        }
+
+                        @keyframes arrow-flash-left {
+                            0% { opacity: 0.15; transform: translateX(3px); }
+                            50% { opacity: 1; transform: translateX(-3px); }
+                            100% { opacity: 0.15; transform: translateX(3px); }
+                        }
+                        .arrow-left-1 {
+                            animation: arrow-flash-left 0.6s infinite;
+                            animation-delay: 0.24s;
+                        }
+                        .arrow-left-2 {
+                            animation: arrow-flash-left 0.6s infinite;
+                            animation-delay: 0.12s;
+                        }
+                        .arrow-left-3 {
+                            animation: arrow-flash-left 0.6s infinite;
+                            animation-delay: 0s;
+                        }
+
+                        .side-overlay-left {
+                            background: radial-gradient(circle at 0% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 75%);
+                        }
+                        .side-overlay-right {
+                            background: radial-gradient(circle at 100% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 75%);
+                        }
+                    `}</style>
+
+                        {/* HLS Video Container */}
+                        <div className={`w-full h-full absolute inset-0 z-0 ${isEmbedServer ? 'hidden' : 'block'}`}>
+                            <div ref={artContainerRef} className="w-full h-full"></div>
+                        </div>
+
+                        {/* Double-tap visual indicators (mobile/tablet) */}
+                        {!isEmbedServer && (
+                            <>
+                                {/* Tap ripples container */}
+                                <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+                                    {tapState.ripples.map(ripple => (
+                                        <div
+                                            key={ripple.id}
+                                            className="absolute rounded-full bg-white/20 animate-ripple-expand pointer-events-none"
+                                            style={{
+                                                left: ripple.x,
+                                                top: ripple.y,
+                                                transform: 'translate(-50%, -50%)',
+                                                willChange: 'transform, opacity',
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Left double-tap region (30% width) */}
+                                <div
+                                    className="absolute left-0 top-0 w-[30%] h-full z-20 pointer-events-none transition-opacity duration-300"
+                                    style={{ opacity: tapState.side === 'left' ? 1 : 0 }}
+                                >
+                                    {/* Radial highlight */}
+                                    <div className="absolute inset-0 side-overlay-left pointer-events-none" />
+
+                                    {/* Seek Indicator Overlay */}
+                                    {tapState.side === 'left' && (
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center animate-bubble-pop-in pointer-events-none">
+                                            <div className="flex items-center gap-0.5 mb-1.5 justify-center">
+                                                <svg className="arrow-left-1" width="18" height="18" viewBox="0 0 24 24" fill="white"><polyline points="15 18 9 12 15 6" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" /></svg>
+                                                <svg className="arrow-left-2" width="18" height="18" viewBox="0 0 24 24" fill="white"><polyline points="15 18 9 12 15 6" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" /></svg>
+                                                <svg className="arrow-left-3" width="18" height="18" viewBox="0 0 24 24" fill="white"><polyline points="15 18 9 12 15 6" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" /></svg>
+                                            </div>
+                                            <div className="text-white text-xs font-semibold tracking-wide" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)', fontFamily: '-apple-system, sans-serif' }}>
+                                                -{tapState.accumulated} giây
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Right double-tap region (30% width) */}
+                                <div
+                                    className="absolute right-0 top-0 w-[30%] h-full z-20 pointer-events-none transition-opacity duration-300"
+                                    style={{ opacity: tapState.side === 'right' ? 1 : 0 }}
+                                >
+                                    {/* Radial highlight */}
+                                    <div className="absolute inset-0 side-overlay-right pointer-events-none" />
+
+                                    {/* Seek Indicator Overlay */}
+                                    {tapState.side === 'right' && (
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center animate-bubble-pop-in pointer-events-none">
+                                            <div className="flex items-center gap-0.5 mb-1.5 justify-center">
+                                                <svg className="arrow-right-1" width="18" height="18" viewBox="0 0 24 24" fill="white"><polyline points="9 18 15 12 9 6" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" /></svg>
+                                                <svg className="arrow-right-2" width="18" height="18" viewBox="0 0 24 24" fill="white"><polyline points="9 18 15 12 9 6" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" /></svg>
+                                                <svg className="arrow-right-3" width="18" height="18" viewBox="0 0 24 24" fill="white"><polyline points="9 18 15 12 9 6" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" /></svg>
+                                            </div>
+                                            <div className="text-white text-xs font-semibold tracking-wide" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)', fontFamily: '-apple-system, sans-serif' }}>
+                                                +{tapState.accumulated} giây
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {/* YouTube Trailer Embed */}
+                        {isTrailerMode && trailerEmbedSrc && (
+                            <iframe
+                                src={trailerEmbedSrc}
+                                allowFullScreen
+                                allow="autoplay; encrypted-media"
+                                className="w-full h-full border-0 absolute inset-0 z-[5]"
+                            />
+                        )}
+
+                        {/* Iframe Embed */}
+                        {!isTrailerMode && isEmbedServer && embedSrc && (
+                            <>
+                                <iframe
+                                    src={embedSrc}
+                                    allowFullScreen
+                                    onLoad={() => setIsIframeLoading(false)}
+                                    className="w-full h-full border-0 absolute inset-0 z-[5]"
+                                />
+                                {isIframeLoading && (
+                                    <div className="absolute inset-0 z-[200] bg-[#0F1115] flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300">
+                                        <LoadingSpinner size="xl" className="mb-4 md:mb-6" />
+                                        <div className="transition-all duration-500 delay-100">
+                                            <h3 className="text-white text-md md:text-lg lg:text-xl font-bold tracking-tight mb-2">Đang kết nối Server...</h3>
+                                            <p className="text-white/40 text-xs md:text-sm">Vui lòng đợi trong giây lát</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Movie Info Overlay (Top Left) */}
+                        {portalTarget && !isEmbedServer && createPortal(
+                            <div className={`watch-top-overlay absolute top-2 left-2 md:top-6 md:left-6 z-[110] pointer-events-none max-w-[55%]  lg:max-w-[70%] transition-all duration-500 ${!showEndOverlay ? 'opacity-100' : 'opacity-0'}`}>
+                                <div className="flex flex-col gap-1">
+                                    <h1 className="text-white text-[13px] md:text-[20px] font-bold [text-shadow:2px_2px_4px_rgba(0,0,0,0.9)] leading-tight line-clamp-1">
+                                        {movie.name}
+                                    </h1>
+                                    <div className="flex items-center gap-2 text-white/70 text-[10px] md:text-[14px] font-medium [text-shadow:1px_1px_2px_rgba(0,0,0,0.9)]">
+                                        {movie.origin_name && <span className="hidden sm:inline opacity-60 font-normal truncate max-w-[150px] md:max-w-xs">{movie.origin_name}</span>}
+                                        {movie.origin_name && <span className="hidden sm:inline opacity-40">•</span>}
+                                        <span className="text-[#D497FF]/90 [text-shadow:none] font-bold">{currentEpisode.name}</span>
+                                    </div>
+                                </div>
+                            </div>,
+                            portalTarget
+                        )}
+
+                        {/* Episode List Trigger Button (Top Right) */}
+                        {portalTarget && createPortal(
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowEpisodeOverlay(true);
+                                }}
+                                className={`watch-top-overlay absolute top-3 right-3 md:top-8 md:right-8 z-[110] flex items-center gap-2 md:gap-2.5 bg-black/60 hover:bg-[#D497FF]/20 border border-white/10 hover:border-[#D497FF]/50 py-1.5 md:py-2.5 px-3 md:px-5 rounded-full transition-all duration-300 active:scale-95 cursor-pointer group shadow-lg ${!showEpisodeOverlay ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            >
+                                <List size={14} className="md:w-5 md:h-5 text-white group-hover:text-[#D497FF] transition-colors duration-300" />
+                                <span className="text-white text-[10px] md:text-[14px] font-bold tracking-wide group-hover:text-[#D497FF] transition-colors duration-300">Danh sách tập</span>
+                            </button>,
+                            portalTarget
+                        )}
+
+                        {/* Loading Overlay when switching episodes */}
+                        {portalTarget && createPortal(
+                            <div
+                                className={`absolute inset-0 z-[200] bg-black/60 flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300 ${isChangingEpisode ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            >
+                                <LoadingSpinner size="xl" className="mb-4 md:mb-6" />
+                                <div className={`transition-all duration-500 delay-100 ${isChangingEpisode ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                                    <h3 className="text-white text-md md:text-lg lg:text-xl font-bold tracking-tight mb-2">Đang chuyển tập...</h3>
+                                    <p className="text-white/40 text-xs md:text-sm">Vui lòng đợi trong giây lát</p>
+                                </div>
+                            </div>,
+                            portalTarget
+                        )}
+
+                        {/* Episode List Overlay Panel */}
+                        {portalTarget && createPortal(
+                            <div className={`absolute inset-0 z-[210] ${showEpisodeOverlay ? 'visible' : 'invisible'} [transition-property:visibility] duration-500`}>
+
+                                <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    onDoubleClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onMouseUp={(e) => e.stopPropagation()}
+                                    onTouchStart={(e) => e.stopPropagation()}
+                                    onTouchEnd={(e) => e.stopPropagation()}
+                                    onTouchMove={(e) => e.stopPropagation()}
+                                    className={`absolute top-0 right-0 h-full w-[200px] sm:w-[260px] md:w-[360px] bg-[#111419] border-l border-white/5 transition-transform duration-500 ease-out flex flex-col select-none outline-none [backface-visibility:hidden] [will-change:transform] [-webkit-tap-highlight-color:transparent] ${showEpisodeOverlay ? 'translate-x-0' : 'translate-x-full'}`}>
+                                    {/* Header */}
+                                    <div className="p-2 sm:p-3 lg:p-5 border-b gap-10 border-white/5 flex items-center justify-between bg-white/[0.02]">
+                                        <div className="flex flex-col gap-0.5">
+                                            <h3 className="text-white text-[13px] md:text-[20px] font-bold line-clamp-1">{movie.name}</h3>
+                                            <span className="text-white/40 text-[10px] md:text-xs lg:text-sm">
+                                                Danh sách tập • {processedEpisodes[activeServerIndex]?.server_data?.length || 0} tập
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowEpisodeOverlay(false)}
+                                            className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 flex items-center justify-center text-white/50 hover:text-white transition-colors cursor-pointer"
+                                        >
+                                            <X size={16} className="lg:w-6 lg:h-6" />
+                                        </button>
+                                    </div>
+
+                                    {/* List Body */}
+                                    <div id="episode-list-container" className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-1.5 sm:p-3 lg:p-5 flex flex-col gap-1.5 md:gap-2 lg:gap-3">
+                                        {processedEpisodes[activeServerIndex]?.server_data?.map((ep, idx) => {
+                                            const epSlug = getFriendlyEpisodeSlug(ep.slug);
+                                            const isActive = epSlug === currentEpisodeSlug;
+                                            const epNum = parseEpNumber(ep.name);
+                                            const epThumb = typeof epNum === 'number' && episodeThumbnails[epNum] ? episodeThumbnails[epNum] : null;
+
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    id={isActive ? 'active-episode' : undefined}
+                                                    onClick={() => {
+                                                        if (!isActive) {
+                                                            setIsChangingEpisode(true);
+                                                            setShowEpisodeOverlay(false);
+                                                            selectEpisode(epSlug);
+                                                        }
+                                                    }}
+                                                    className={`group flex items-center w-full flex-shrink-0 gap-1.5 lg:gap-3 p-1 sm:p-2 lg:p-3 rounded-md lg:rounded-xl transition-all duration-300 relative overflow-hidden cursor-pointer ${isActive ? 'bg-[#D497FF]/10 border border-[#D497FF]/20' : 'hover:bg-white/5 border border-transparent'}`}
+                                                >
+                                                    <div className="relative w-12 sm:w-20 lg:w-28 aspect-video rounded sm:rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+                                                        <SmartImage
+                                                            r2Src={epThumb ? undefined : getR2MovieThumbUrl(slug)}
+                                                            src={epThumb || getImageUrl(movie.thumb_url || movie.poster_url, { width: 300, quality: 75 })}
+                                                            rawSrc={epThumb || getRawImageUrl(movie.thumb_url || movie.poster_url)}
+                                                            alt={ep.name}
+                                                            fill
+                                                            className={`object-cover w-full h-full transition-transform duration-500 ${isActive ? 'scale-105' : 'group-hover:scale-110'}`}
+                                                            sizes="(max-width: 640px) 48px, (max-width: 1024px) 80px, 112px"
+                                                        />
+                                                        {isActive && (
+                                                            <div className="absolute inset-0 bg-[#D497FF]/20 flex items-center justify-center z-10">
+                                                                <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 lg:w-2 lg:h-2 rounded-full bg-[#D497FF] animate-ping" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col gap-0 min-w-0">
+                                                        <h4 className={`text-[9px] sm:text-[11px] lg:text-[13px] font-bold truncate ${isActive ? 'text-[#D497FF]' : 'text-white/80 group-hover:text-white'}`}>
+                                                            {(() => {
+                                                                const rawName = ep.name || "";
+                                                                const displayName = rawName.replace(/Tập\s*/i, "").trim();
+                                                                if (!displayName || /^0+$/.test(displayName) || displayName.toLowerCase() === "trailer") {
+                                                                    return "Trailer";
+                                                                }
+                                                                const curSrv = processedEpisodes[activeServerIndex];
+                                                                if (curSrv?.server_data && curSrv.server_data.length >= 2 && curSrv.server_data.length <= 4) {
+                                                                    const rawLower = rawName.toLowerCase();
+                                                                    const slugLower = (ep.slug || "").toLowerCase();
+                                                                    if (rawLower.includes("lồng tiếng") || slugLower.includes("long-tieng")) return "Bản Lồng Tiếng";
+                                                                    if (rawLower.includes("thuyết minh") || slugLower.includes("thuyet-minh")) return "Bản Thuyết Minh";
+                                                                    if (rawLower === "full" || slugLower === "full") return "Bản Vietsub";
+                                                                }
+                                                                return ep.name;
+                                                            })()}
+                                                        </h4>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>,
+                            portalTarget
+                        )}
+
+
+                        {/* Replay/End Overlay */}
+                        {portalTarget && createPortal(
+                            <div
+                                className={`absolute inset-0 z-[150] bg-black/90 flex flex-col items-center justify-center p-3 md:p-6 text-center pointer-events-auto transition-opacity duration-300 ${showEndOverlay ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            >
+                                <div className="flex items-center justify-center gap-4 md:gap-8 scale-90 md:scale-100">
+                                    <button
+                                        onClick={() => {
+                                            setShowEndOverlay(false);
+                                            showEndOverlayRef.current = false;
+                                            if (artRef.current) {
+                                                artRef.current.seek = 0;
+                                                artRef.current.play();
+                                            }
+                                        }}
+                                        className={`group flex cursor-pointer flex-col items-center gap-3 hover:scale-105 transition-all duration-500 ${showEndOverlay ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                                    >
+                                        <div className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/20 group-hover:bg-white/20">
+                                            <RefreshCcw size={20} className="md:w-6 md:h-6" />
+                                        </div>
+                                        <span className="text-white/80 font-bold uppercase tracking-widest text-[8px] md:text-[10px]">Xem lại</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setShowEpisodeOverlay(true)}
+                                        className={`group flex cursor-pointer flex-col items-center gap-3 hover:scale-105 transition-all duration-500 delay-75 ${showEndOverlay ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                                    >
+                                        <div className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/20 group-hover:bg-white/20">
+                                            <List size={20} className="md:w-6 md:h-6" />
+                                        </div>
+                                        <span className="text-white/80 font-bold uppercase tracking-widest text-[8px] md:text-[10px]">Danh sách tập</span>
+                                    </button>
+                                </div>
+                            </div>,
+                            portalTarget
+                        )}
+
+
+                    </div>
+
+                    {/* Dual Subtitles — Custom Overlay */}
+                    {portalTarget && !isEmbedServer && (subtitle1Text || subtitle2Text) && createPortal(
+                        <div className="art-subtitle" dir="auto" style={{ pointerEvents: 'none', display: 'block', position: 'absolute', bottom: '60px', left: 0, width: '100%', textAlign: 'center', zIndex: 30 }}>
+                            {subtitle1Text && (
+                                <span className="art-subtitle-track" style={{ display: 'inline-block', width: '100%', textShadow: '0 1px 2px #000, 0 1px 2px #000' }}>
+                                    {subtitle1Text}
+                                </span>
+                            )}
+                            {subtitle2Text && (
+                                <span className="art-subtitle-track" style={{ display: 'inline-block', width: '100%', fontSize: '0.85em', color: '#f59e0b', marginTop: subtitle1Text ? '4px' : '0', textShadow: '0 1px 2px #000, 0 1px 2px #000' }}>
+                                    {subtitle2Text}
+                                </span>
+                            )}
+                        </div>,
+                        portalTarget
+                    )}
+                </div>
+
+                {!isFullscreenActive && (
+                    <div className="relative z-20">
+                        <PlayerControls
+                            isAutoNext={isAutoNext}
+                            onToggleAutoNext={toggleAutoNext}
+                            isFavorited={isFavorited}
+                            onToggleFavorite={toggleFavorite}
+                            isInWatchlist={isInWatchlist}
+                            onToggleWatchlist={toggleWatchlist}
+                            episodes={processedEpisodes}
+                            activeServer={activeServerIndex}
+                            onServerChange={handleServerChange}
+                            onReport={() => setShowReportModal(true)}
+                            onShare={() => setShowShareModal(true)}
+                            subtitles={episodeSubtitles}
+                            subtitleSlot1={slot1}
+                            subtitleSlot2={slot2}
+                            onSubtitleSlot1Change={setSlot1}
+                            onSubtitleSlot2Change={setSlot2}
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* === MAIN CONTENT (BELOW PLAYER) === */}
+            {!isFullscreenActive && (
+                <div className="overflow-hidden transition-all duration-500 ease-in-out max-h-[8000px] opacity-100 mt-5 sm:mt-6">
+                    <div className="w-full max-w-[1440px] 2xl:max-w-[1560px] px-3 sm:px-5 lg:px-8 mx-auto pb-16 space-y-4">
+                        {subtitlePortalNode && hasCustomSubtitles && createPortal(
+                            <DualSubtitleMenu
+                                subtitles={episodeSubtitles}
+                                subtitleSlot1={slot1}
+                                subtitleSlot2={slot2}
+                                onSubtitleSlot1Change={setSlot1}
+                                onSubtitleSlot2Change={setSlot2}
+                            />,
+                            subtitlePortalNode as HTMLElement
+                        )}
+
+                        {/* 1. INTERACTIVE TAB NAVIGATION BAR (Danh Sách Tập, Thông Tin Phim, Diễn Viên) */}
+                        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 select-none scroll-indicator-x">
+                            {/* Tab 1: Danh Sách Tập */}
+                            <button
+                                onClick={() => setActiveTab("episodes")}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer border whitespace-nowrap active:scale-95 ${activeTab === "episodes"
+                                    ? "bg-[#D497FF] border-[#D497FF] text-black"
+                                    : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white hover:border-white/20"
+                                    }`}
+                            >
+                                <List size={15} />
+                                <span>Danh Sách Tập</span>
+                                {processedEpisodes[activeServerIndex]?.server_data?.length ? (
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${activeTab === "episodes" ? "bg-black/20 text-black" : "bg-white/10 text-white/60"}`}>
+                                        {processedEpisodes[activeServerIndex].server_data.length}
+                                    </span>
+                                ) : null}
+                            </button>
+
+                            {/* Tab 2: Thông Tin Phim */}
+                            <button
+                                onClick={() => setActiveTab("info")}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer border whitespace-nowrap active:scale-95 ${activeTab === "info"
+                                    ? "bg-[#D497FF] border-[#D497FF] text-black"
+                                    : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white hover:border-white/20"
+                                    }`}
+                            >
+                                <Info size={15} />
+                                <span>Thông Tin Phim</span>
+                            </button>
+
+                            {/* Tab 3: Diễn Viên */}
+                            <button
+                                onClick={() => setActiveTab("actors")}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer border whitespace-nowrap active:scale-95 ${activeTab === "actors"
+                                    ? "bg-[#D497FF] border-[#D497FF] text-black"
+                                    : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10 hover:text-white hover:border-white/20"
+                                    }`}
+                            >
+                                <Users size={15} />
+                                <span>Diễn Viên</span>
+                                {tmdbActors.length > 0 && (
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${activeTab === "actors" ? "bg-black/20 text-black" : "bg-white/10 text-white/60"}`}>
+                                        {tmdbActors.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* 2. TAB CONTENT PANEL CONTAINER (Tự động co giãn vừa vặn với nội dung) */}
+                        <div className="bg-[#0F1115] border border-white/10 rounded-2xl p-5 sm:p-7 shadow-xl transition-all duration-300">
+                            {/* TAB 1: DANH SÁCH TẬP */}
+                            {activeTab === "episodes" && (
+                                <div className="animate-fade-in space-y-4">
+                                    {processedEpisodes && processedEpisodes.length > 0 ? (
+                                        <EpisodeList
+                                            slug={slug}
+                                            movieName={movie.name}
+                                            currentEpisode={currentEpisodeSlug}
+                                            episodes={processedEpisodes}
+                                            activeServer={activeServerIndex}
+                                            onServerChange={handleServerChange}
+                                            onEpisodeClick={() => setIsChangingEpisode(true)}
+                                            onEpisodeSelect={selectEpisode}
+                                        />
+                                    ) : (
+                                        <div className="p-6 sm:p-8 text-center">
+                                            <div className="max-w-md mx-auto space-y-4">
+                                                <div className="w-14 h-14 bg-[#D497FF]/10 border border-[#D497FF]/20 rounded-2xl flex items-center justify-center mx-auto text-[#D497FF]">
+                                                    <Film size={28} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-white uppercase tracking-wider">
+                                                        {isTrailerOnly ? "Phim Đang Ở Bản Trailer / Sắp Chiếu" : "Tập Phim Đang Cập Nhật"}
+                                                    </h3>
+                                                    <p className="text-sm text-white/50 mt-1">
+                                                        {isTrailerOnly
+                                                            ? "Bộ phim hiện đang trong giai đoạn giới thiệu trailer. Các tập phim chính thức sẽ được cập nhật sớm nhất!"
+                                                            : "Hệ thống đang đồng bộ và cập nhật các tập phim mới nhất. Bạn vui lòng quay lại sau nhé!"}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* TAB 2: THÔNG TIN & CỐT TRUYỆN */}
+                            {activeTab === "info" && (
+                                <div className="animate-fade-in">
+                                    <MovieInfo slug={slug} movie={movie} episode={currentEpisode} />
+                                </div>
+                            )}
+
+                            {/* TAB 3: DÀN DIỄN VIÊN */}
+                            {activeTab === "actors" && (
+                                <div className="animate-fade-in space-y-4">
+                                    <div className="flex items-center gap-2.5 mb-3">
+                                        <div className="w-1.5 h-5 bg-[#FAD078] rounded-full" />
+                                        <h2 className="text-base sm:text-lg font-extrabold text-white uppercase tracking-wider">
+                                            Dàn Diễn Viên
+                                        </h2>
+                                    </div>
+
+                                    {isLoadingActors ? (
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 sm:gap-4">
+                                            {Array.from({ length: 8 }).map((_, idx) => (
+                                                <div key={idx} className="space-y-2">
+                                                    <Skeleton className="aspect-[3/4] w-full" rounded="lg" />
+                                                    <Skeleton className="h-3 w-3/4 mx-auto" rounded="md" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : tmdbActors.length > 0 ? (
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 sm:gap-4">
+                                            {tmdbActors.slice(0, 16).map((actor) => (
+                                                <div key={actor.id} className="group flex flex-col items-center text-center space-y-1.5">
+                                                    <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-[#0F1115] border border-white/10 group-hover:border-[#D497FF]/50 transition-all duration-300 shadow-md">
+                                                        {actor.profile_path ? (
+                                                            <SmartImage
+                                                                r2Src={getR2ActorUrl(actor.id)}
+                                                                src={getImageUrl(`https://image.tmdb.org/t/p/w200${actor.profile_path}`, { width: 160, quality: 75 })}
+                                                                rawSrc={`https://image.tmdb.org/t/p/w200${actor.profile_path}`}
+                                                                alt={actor.name}
+                                                                fill
+                                                                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                                                sizes="(max-width: 768px) 30vw, 150px"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-white/20">
+                                                                <User size={32} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-white/90 group-hover:text-[#D497FF] transition-colors truncate w-full px-1">
+                                                        {actor.name}
+                                                    </span>
+                                                    {actor.character && (
+                                                        <span className="text-[11px] text-white/40 truncate w-full px-1">
+                                                            {actor.character}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (movie.actors && movie.actors.length > 0 && movie.actors[0] !== "") || ((movie as any).actor && (movie as any).actor.length > 0 && (movie as any).actor[0] !== "") ? (
+                                        <div className="flex flex-wrap gap-2 sm:gap-2.5">
+                                            {((movie as any).actor || movie.actors).map((act: string, i: number) => (
+                                                <div key={i} className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs sm:text-sm font-medium text-white/90 transition-colors">
+                                                    <User size={13} className="text-[#D497FF]" />
+                                                    <span>{act}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs sm:text-sm text-white/40 italic py-2">Đang cập nhật danh sách diễn viên...</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 3. TWO-COLUMN LAYOUT: COMMENTS (LEFT - 70%) & GENRE TAGS + RECOMMENDATIONS (RIGHT - 30%) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-10 gap-5 sm:gap-6 items-start pt-4 border-t border-white/5">
+                            {/* LEFT COLUMN: Community Discussion & Comments (70%) */}
+                            <div className="lg:col-span-7 bg-[#0F1115] border border-white/10 rounded-2xl p-4 sm:p-6 shadow-xl">
+                                <div className="flex items-center gap-2.5 mb-5">
+                                    <div className="w-1.5 h-5 bg-[#D497FF] rounded-full" />
+                                    <h2 className="text-base sm:text-lg font-extrabold text-white uppercase tracking-wider">
+                                        Bình Luận & Thảo Luận
+                                    </h2>
+                                </div>
+                                <LazyRow
+                                    id={`comments-${slug}-${getFriendlyEpisodeSlug(currentEpisodeSlug)}`}
+                                    estimatedHeight="200px"
+                                    skeleton={<Skeleton className="h-40" rounded="xl" />}
+                                >
+                                    <CommentSection movieSlug={`${slug}/${getFriendlyEpisodeSlug(currentEpisodeSlug)}`} />
+                                </LazyRow>
+                            </div>
+
+                            {/* RIGHT COLUMN: Movie Genre Tags & Suggested Movies (30%) */}
+                            <div className="lg:col-span-3 space-y-4">
+                                {/* TAGS THỂ LOẠI CỦA PHIM ĐANG XEM */}
+                                {movie.category && movie.category.length > 0 && (
+                                    <div className="bg-[#0F1115] border border-white/10 rounded-2xl p-4 shadow-xl space-y-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <Tag size={15} className="text-[#D497FF]" />
+                                            <h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">
+                                                Thể Loại
+                                            </h3>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {(() => {
+                                                const seen = new Set<string>();
+                                                return movie.category
+                                                    .filter((cat: any) => {
+                                                        if (!cat || !cat.slug) return false;
+                                                        if (/^\d{2,4}$/.test(cat.slug)) return false;
+                                                        if (seen.has(cat.slug)) return false;
+                                                        seen.add(cat.slug);
+                                                        return true;
+                                                    })
+                                                    .slice(0, 8)
+                                                    .map((cat: { id?: string; name: string; slug: string }) => (
+                                                        <TransitionLink
+                                                            key={cat.id || cat.slug}
+                                                            href={`/the-loai/${cat.slug}`}
+                                                            className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 hover:bg-[#D497FF]/15 hover:border-[#D497FF]/30 hover:text-[#D497FF] text-[11px] font-medium text-white/80 transition-all duration-200"
+                                                        >
+                                                            #{cat.name}
+                                                        </TransitionLink>
+                                                    ));
+                                            })()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* CỘT PHIM ĐỀ XUẤT */}
+                                {filteredSuggestions.length > 0 && (
+                                    <div className="bg-[#0F1115] border border-white/10 rounded-2xl p-4 shadow-xl space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles size={15} className="text-[#FAD078]" />
+                                                <h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider">
+                                                    Phim Đề Xuất
+                                                </h3>
+                                            </div>
+                                        </div>
+
+                                        {/* Danh sách phim đề xuất dạng Minimalist Media List */}
+                                        <div className="space-y-2">
+                                            {filteredSuggestions.slice(0, 6).map((sugMovie) => {
+                                                const sugRating = sugMovie.tmdb?.vote_average && sugMovie.tmdb.vote_average > 0
+                                                    ? sugMovie.tmdb.vote_average.toFixed(1)
+                                                    : null;
+
+                                                return (
+                                                    <TransitionLink
+                                                        key={sugMovie.slug}
+                                                        href={`/phim/${sugMovie.slug}`}
+                                                        className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-200 group"
+                                                    >
+                                                        {/* Thumbnail Poster rõ ràng, to vừa vặn */}
+                                                        <div className="relative w-16 sm:w-20 aspect-[2/3] rounded-lg overflow-hidden bg-[#0F1115] border border-white/10 shrink-0 group-hover:border-[#D497FF]/40 transition-all shadow-md">
+                                                            <SmartImage
+                                                                r2Src={getR2MoviePosterUrl(sugMovie.slug)}
+                                                                src={getImageUrl(sugMovie.poster_url || sugMovie.thumb_url, { width: 160, quality: 80 })}
+                                                                rawSrc={getRawImageUrl(sugMovie.poster_url || sugMovie.thumb_url)}
+                                                                alt={sugMovie.name}
+                                                                fill
+                                                                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                                                sizes="(max-width: 768px) 64px, 80px"
+                                                            />
+                                                        </div>
+
+                                                        {/* Info với typography rõ ràng & title 1 dòng */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-sm font-bold text-white group-hover:text-[#D497FF] transition-colors truncate">
+                                                                {sugMovie.name}
+                                                            </h4>
+                                                            <p className="text-xs text-white/40 italic truncate mt-0.5">
+                                                                {sugMovie.origin_name}
+                                                            </p>
+
+                                                            {/* Metadata text inline thanh lịch */}
+                                                            <div className="flex items-center gap-1.5 text-xs text-white/50 mt-1.5 font-medium flex-wrap">
+                                                                {sugRating && (
+                                                                    <span className="flex items-center gap-0.5 text-[#FAD078] font-bold">
+                                                                        <span>★</span>
+                                                                        <span>{sugRating}</span>
+                                                                    </span>
+                                                                )}
+                                                                {sugRating && <span>•</span>}
+                                                                {sugMovie.year && <span>{sugMovie.year}</span>}
+                                                                {sugMovie.quality && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <span className="text-[#A7F3D0] font-semibold">{sugMovie.quality}</span>
+                                                                    </>
+                                                                )}
+                                                                {sugMovie.episode_current && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <span className="text-pink-300 font-semibold truncate max-w-[90px]">{sugMovie.episode_current}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </TransitionLink>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <ReportModal isOpen={showReportModal} onClose={() => setShowReportModal(false)} movieName={movie.name} episodeName={currentEpisode.name} />
+            <ShareModal
+                isOpen={showShareModal}
+                onClose={() => { setShowShareModal(false); if (user) logActivity(user.id, "share_movie", { movie_slug: slug, movie_name: movie.name }); }}
+                movieName={movie.name}
+                shareUrl={typeof window !== "undefined" ? `${window.location.origin}/phim/${slug}/${currentEpisodeSlug}${user?.id ? `?ref=${user.id}` : ''}` : ''}
+            />
+        </div>
+    );
+}

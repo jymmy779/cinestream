@@ -1,0 +1,338 @@
+"use client";
+
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import axios from "axios";
+import { Movie } from "@/app/types/movie";
+import { FilterState } from "@/app/components/Movies/MovieCatalog/MovieFilter";
+import { MenuItem } from "@/app/components/Layout/Header/types";
+import { globalCache } from "@/app/utils/globalCache";
+
+import CatalogLayout from "@/app/components/Movies/MovieCatalog/CatalogLayout";
+import { Film, AlertCircle, RotateCcw, Trash2 } from "lucide-react";
+
+import { CatalogInitialData } from "@/app/utils/serverFetch";
+
+export default function SearchClient({ initialData }: { initialData?: CatalogInitialData }) {
+// ... existing search client wrapper ...
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-[#0f1115]" />}>
+            <SearchContent initialData={initialData} />
+        </Suspense>
+    );
+}
+
+function SearchContent({ initialData }: { initialData?: CatalogInitialData }) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // Parse filters from URL
+    const keyword = (searchParams.get("q") || "").trim();
+    const initialFilters: FilterState = {
+        category: searchParams.get("cat") || "",
+        country: searchParams.get("country") || "",
+        type: searchParams.get("type") || "",
+        year: searchParams.get("year") || "",
+        sort: searchParams.get("sort") || "modified.time",
+        rating: searchParams.get("rating") || "",
+        status: searchParams.get("status") || "",
+        lang: searchParams.get("lang") || "",
+        sortType: searchParams.get("sort_type") || "desc",
+        letter: searchParams.get("letter") || ""
+    };
+
+    const initialPage = Number(searchParams.get("page")) || 1;
+    const [isFilterOpen, setIsFilterOpen] = useState(searchParams.get("filter") === "open");
+    const [movies, setMovies] = useState<Movie[]>(initialData?.movies || []);
+    const [isLoading, setIsLoading] = useState(!initialData);
+    const [isPageLoading, setIsPageLoading] = useState(false);
+    const [isError, setIsError] = useState(false);
+    const [currentPage, setCurrentPage] = useState(initialPage);
+    const [totalPages, setTotalPages] = useState(initialData?.totalPages || 1);
+
+    const [prevKeyword, setPrevKeyword] = useState(keyword);
+    if (keyword !== prevKeyword) {
+        setPrevKeyword(keyword);
+        setCurrentPage(1);
+        setMovies([]);
+        setIsLoading(true);
+        setIsPageLoading(false);
+    }
+
+    const [categories, setCategories] = useState<MenuItem[]>(initialData?.categories || []);
+    const [countries, setCountries] = useState<MenuItem[]>(initialData?.countries || []);
+    const [activeFilters, setActiveFilters] = useState<FilterState>(initialFilters);
+
+    const updateUrl = (page: number, filters: FilterState, isOpen: boolean) => {
+        const params = new URLSearchParams();
+        if (keyword) params.set("q", keyword);
+        if (page > 1) params.set("page", page.toString());
+        if (filters.category) params.set("cat", filters.category);
+        if (filters.country) params.set("country", filters.country);
+        if (filters.type) params.set("type", filters.type);
+        if (filters.year) params.set("year", filters.year);
+        if (filters.sort !== "modified.time") params.set("sort", filters.sort);
+        if (filters.rating) params.set("rating", filters.rating);
+        if (filters.status) params.set("status", filters.status);
+        if (filters.lang) params.set("lang", filters.lang);
+        if (filters.sortType && filters.sortType !== "desc") params.set("sort_type", filters.sortType);
+        if (filters.letter) params.set("letter", filters.letter);
+        if (isOpen) params.set("filter", "open");
+
+        // Dùng replaceState để đổi URL mượt mà trên thanh địa chỉ mà KHÔNG bắt Server VPS ở xa render lại cả trang
+        if (typeof window !== "undefined") {
+            const queryStr = params.toString();
+            const newUrl = queryStr ? `${window.location.pathname}?${queryStr}` : window.location.pathname;
+            window.history.replaceState(null, "", newUrl);
+        }
+    };
+
+    const handlePageChange = (newPage: number) => {
+        setCurrentPage(newPage);
+        updateUrl(newPage, activeFilters, isFilterOpen);
+        window.scrollTo({ top: 0, behavior: "instant" });
+    };
+
+
+    useEffect(() => {
+        let isMounted = true;
+        const cacheKey = `search_${keyword}_${currentPage}_${JSON.stringify(activeFilters)}`;
+
+        const fetchMovies = async () => {
+            if (!keyword) {
+                setIsLoading(false);
+                return;
+            }
+
+            // If we have initialData and this is the first load (or the active filters/page match the initial params), use it
+            // We check pageTitle to ensure initialData matches the current keyword (avoids stale data on client navigation)
+            if (initialData && currentPage === initialPage && JSON.stringify(activeFilters) === JSON.stringify(initialFilters) && initialData.pageTitle === `Tìm kiếm: ${keyword}`) {
+                setMovies(initialData.movies || []);
+                setTotalPages(initialData.totalPages || 1);
+                setIsLoading(false);
+                setIsPageLoading(false);
+                return;
+            }
+
+            // Check cache first for SWR
+            const cached = globalCache.getRaw<any>(cacheKey);
+            if (cached) {
+                setMovies(cached.movies);
+                setTotalPages(cached.totalPages);
+                setIsLoading(false);
+                setIsPageLoading(true);
+            } else {
+                // Nếu chưa có trong cache: Nếu là đổi trang thì hiện Skeleton (isPageLoading), nếu là từ khóa mới thì setIsLoading
+                setMovies([]);
+                if (currentPage > 1) {
+                    setIsPageLoading(true);
+                    setIsLoading(false);
+                } else {
+                    setIsLoading(true);
+                    setIsPageLoading(false);
+                }
+            }
+
+            try {
+                const params = new URLSearchParams();
+                params.set("keyword", keyword);
+                params.set("page", currentPage.toString());
+                params.set("limit", "48");
+
+                if (activeFilters.category) params.set("category", activeFilters.category);
+                if (activeFilters.country) params.set("country", activeFilters.country);
+                if (activeFilters.year) params.set("year", activeFilters.year);
+                
+                // Sort logic
+                let sortField = "modified.time";
+                if (activeFilters.sort === "year") sortField = "year";
+                if (activeFilters.sort === "_id") sortField = "_id";
+                params.set("sort_field", sortField);
+                params.set("sort_type", activeFilters.sortType || "desc");
+
+                const apiUrl = `/api/search?${params.toString()}`;
+                const res = await axios.get(apiUrl);
+
+                if (!isMounted) return;
+
+                if (res.data?.status === "success" || res.data?.status === true) {
+                    let items = res.data.data?.items || [];
+                    const totalItems = res.data.data?.params?.pagination?.totalItems || 0;
+                    const calculatedTotalPages = Math.ceil(totalItems / 48) || 1;
+                    
+                    // Client-side filtering
+                    if (items.length > 0) {
+                        // Filter by Type
+                        if (activeFilters.type) {
+                            const targetType = activeFilters.type;
+                            items = items.filter((movie: Movie) => {
+                                if (targetType === "single") return movie.type === "single";
+                                if (targetType === "series") return movie.type === "series" || movie.type === "hoathinh" || movie.type === "tvshows";
+                                return true;
+                            });
+                        }
+
+                        // Filter by Status
+                        if (activeFilters.status) {
+                            const status = activeFilters.status;
+                            items = items.filter((movie: Movie) => {
+                                const isCompleted = movie.episode_current?.toLowerCase().includes("hoàn tất") || 
+                                                    movie.episode_current?.toLowerCase().includes("full") || 
+                                                    movie.status === "completed";
+                                if (status === "completed") return isCompleted;
+                                if (status === "ongoing") return !isCompleted;
+                                return true;
+                            });
+                        }
+
+                        // Filter by Language
+                        if (activeFilters.lang) {
+                            const lang = activeFilters.lang;
+                            items = items.filter((movie: Movie) => {
+                                const mLang = (movie.lang || "").toLowerCase();
+                                const mLangKeys = (movie as any).lang_key || [];
+                                
+                                if (lang === "vietsub") {
+                                    return mLang.includes("vietsub") || mLangKeys.includes("vs");
+                                }
+                                if (lang === "thuyetminh") {
+                                    return mLang.includes("thuyết minh") || mLangKeys.includes("tm");
+                                }
+                                if (lang === "longtieng") {
+                                    return mLang.includes("lồng tiếng") || mLangKeys.includes("lt");
+                                }
+                                return true;
+                            });
+                        }
+
+                        // Filter by Letter
+                        if (activeFilters.letter && activeFilters.letter !== "all") {
+                            const targetLetter = activeFilters.letter.toUpperCase();
+                            const removeAccentsLocal = (str: string) => {
+                                return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D");
+                            };
+                            items = items.filter((movie: Movie) => {
+                                const firstChar = removeAccentsLocal(movie.name || "").trim().charAt(0).toUpperCase();
+                                if (targetLetter === "#") {
+                                    return !/^[A-Z]$/.test(firstChar);
+                                }
+                                return firstChar === targetLetter;
+                            });
+                        }
+                    }
+                    
+                    if (isMounted) {
+                        setMovies(items);
+                        setTotalPages(calculatedTotalPages);
+                        setIsError(false);
+                        
+                        // Update cache
+                        globalCache.set(cacheKey, {
+                            movies: items,
+                            totalPages: calculatedTotalPages
+                        });
+
+                        setIsLoading(false);
+                        setIsPageLoading(false);
+                    }
+                } else {
+                    if (isMounted) {
+                        setMovies([]);
+                        setTotalPages(1);
+                    }
+                }
+            } catch (error) {
+                console.error("Lỗi fetch search:", error);
+                if (isMounted) {
+                    setIsError(true);
+                    setMovies([]);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                    setIsPageLoading(false);
+                }
+            }
+        };
+
+        fetchMovies();
+        
+        return () => { 
+            isMounted = false; 
+        };
+    }, [keyword, currentPage, activeFilters, initialData]);
+
+    const handleFilterChange = (filters: FilterState) => {
+        setActiveFilters(filters);
+        setCurrentPage(1);
+        updateUrl(1, filters, isFilterOpen);
+        window.scrollTo({ top: 0, behavior: "instant" });
+    };
+
+    const handleToggleFilter = (isOpen: boolean) => {
+        setIsFilterOpen(isOpen);
+        updateUrl(currentPage, activeFilters, isOpen);
+    };
+
+    return (
+        <CatalogLayout
+            title={`Tìm kiếm phim: ${keyword}`}
+            isLoading={isLoading}
+            isPageLoading={isPageLoading}
+            loadingType={isLoading ? "spinner" : "skeleton"}
+            movies={movies}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            isFilterOpen={isFilterOpen}
+            activeFilters={activeFilters}
+            categories={categories}
+            countries={countries}
+            onFilterChange={handleFilterChange}
+            onToggleFilter={handleToggleFilter}
+            onPageChange={handlePageChange}
+            hideSidebar={true}
+            emptyMessage={
+                isError ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-white/30">
+                        <AlertCircle size={80} strokeWidth={1} className="mb-6 text-red-500/50" />
+                        <p className="text-xl font-light">Đã có lỗi xảy ra khi tìm kiếm</p>
+                        <p className="text-sm mt-2 opacity-50 italic">Hệ thống đang quá tải hoặc lỗi mạng. Vui lòng thử lại sau giây lát.</p>
+                        <button 
+                            onClick={() => window.location.reload()}
+                            className="mt-6 flex items-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-white/80 transition-all"
+                        >
+                            <RotateCcw size={16} />
+                            Thử lại ngay
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-white/30">
+                        <Film size={80} strokeWidth={1} className="mb-6 opacity-40" />
+                        <p className="text-xl font-light">Không có nội dung cho phim: <span className="text-amber-500 font-medium italic">"{keyword}"</span></p>
+                        <p className="text-sm mt-2 opacity-50 italic">Thử với từ khóa khác hoặc điều chỉnh bộ lọc xem?</p>
+                        {(activeFilters.category || activeFilters.country || activeFilters.year || activeFilters.type || activeFilters.status || activeFilters.lang || activeFilters.letter) && (
+                            <button 
+                                onClick={() => handleFilterChange({
+                                    category: "",
+                                    country: "",
+                                    type: "",
+                                    year: "",
+                                    sort: "modified.time",
+                                    rating: "",
+                                    status: "",
+                                    lang: "",
+                                    sortType: "desc",
+                                    letter: "all"
+                                })}
+                                className="mt-8 flex items-center gap-2 px-6 py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-[#D497FF]/30 text-amber-500 rounded-full transition-all group"
+                            >
+                                <Trash2 size={18} className="group-hover:rotate-12 transition-transform" />
+                                Xóa tất cả bộ lọc & Tìm lại
+                            </button>
+                        )}
+                    </div>
+                )
+            }
+        />
+    );
+}
