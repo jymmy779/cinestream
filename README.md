@@ -15,6 +15,16 @@ The production product served **1,000+ monthly users**. That figure refers to th
 
 The public demo uses a public catalog API by default. Authentication and personalized features can be connected to an isolated Supabase project using environment variables. Do not connect this edition to production services.
 
+## Showcase
+![CineStream homepage](./public/showcase/Screenshot 2026-08-26 123813.png)
+![CineStream mobile homepage](./public/showcase/Screenshot 2026-08-26 123935.png)
+![CineStream detailpage](./public/showcase/Screenshot 2026-08-26 124019.png)
+![CineStream video player](./public/showcase/Screenshot 2026-08-26 124056.png)
+![CineStream searchpage](./public/showcase/Screenshot 2026-08-26 124135.png)
+![CineStream playlist](./public/showcase/Screenshot 2026-08-26 124153.png)
+![CineStream dashboard](./public/showcase/Screenshot 2026-08-26 124211.png)
+![CineStream ga4 1k users](./public/showcase/Screenshot 2026-08-26 124235.png)
+
 ## Stack
 
 - Next.js 16 App Router and React 19
