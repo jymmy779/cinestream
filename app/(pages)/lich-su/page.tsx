@@ -11,8 +11,12 @@ import { getImageUrl, getRawImageUrl } from "@/app/utils/movieUtils";
 import { getR2MoviePosterUrl } from "@/app/utils/r2ImageUrl";
 import { toast } from "react-hot-toast";
 import CommonModal from "@/app/components/UI/Modals/CommonModal";
+import { useAuth } from "@/app/components/User/Auth/AuthContext";
+
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export default function HistoryPage() {
+  const { user: authUser } = useAuth();
   const supabase = createClient();
   const [user, setUser] = useState<any>(null);
   const [watchHistory, setWatchHistory] = useState<any[]>([]);
@@ -29,7 +33,9 @@ export default function HistoryPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = isDemoMode
+        ? authUser
+        : (await supabase.auth.getUser()).data.user;
       if (!currentUser) {
         setIsLoading(false);
         return;
@@ -37,14 +43,14 @@ export default function HistoryPage() {
       setUser(currentUser);
 
       let combinedHistory: any[] = [];
-      const { data, error } = await supabase
-        .from('watch_history')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('updated_at', { ascending: false });
+      if (!isDemoMode) {
+        const { data, error } = await supabase
+          .from('watch_history')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('updated_at', { ascending: false });
 
-      if (!error && data) {
-        combinedHistory = data;
+        if (!error && data) combinedHistory = data;
       }
 
       try {
@@ -91,7 +97,7 @@ export default function HistoryPage() {
     };
 
     init();
-  }, [supabase]);
+  }, [supabase, authUser]);
 
   const deleteHistoryItem = (id: string, e?: React.MouseEvent) => {
     e?.preventDefault();

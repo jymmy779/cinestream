@@ -269,6 +269,7 @@ export default function AuthContent() {
 
     localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
     localStorage.setItem("last_login_email", demoEmail);
+    document.cookie = "cinestream_demo_auth=1; Path=/; Max-Age=86400; SameSite=Lax";
     window.dispatchEvent(new Event(DEMO_AUTH_EVENT));
     toast.success("Bạn đang dùng tài khoản demo CineStream.");
     navigateWithTransition("/", true);

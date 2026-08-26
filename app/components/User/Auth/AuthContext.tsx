@@ -28,6 +28,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 try {
                     const stored = localStorage.getItem(DEMO_USER_KEY);
                     setUser(stored ? JSON.parse(stored) as User : null);
+                    if (!stored) {
+                        document.cookie = "cinestream_demo_auth=; Path=/; Max-Age=0; SameSite=Lax";
+                    }
                 } catch {
                     localStorage.removeItem(DEMO_USER_KEY);
                     setUser(null);
@@ -73,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const signOut = async () => {
         if (isDemoMode) {
             localStorage.removeItem(DEMO_USER_KEY);
+            document.cookie = "cinestream_demo_auth=; Path=/; Max-Age=0; SameSite=Lax";
             window.dispatchEvent(new Event(DEMO_AUTH_EVENT));
             return;
         }

@@ -20,6 +20,7 @@ import {
   X
 } from 'lucide-react';
 import { createClient } from "@/app/utils/supabase/client";
+import { useAuth } from "@/app/components/User/Auth/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { logActivity } from "@/app/utils/log-activity";
 import { toast } from "react-hot-toast";
@@ -47,6 +48,8 @@ import { getUserAvatarUrl } from "@/app/utils/avatar-helper";
 import ProfileSkeleton from "./components/ProfileSkeleton";
 
 export default function ProfileContent() {
+  const { user: authUser } = useAuth();
+  const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -72,6 +75,12 @@ export default function ProfileContent() {
 
   useEffect(() => {
     const fetchUser = async () => {
+      if (isDemoMode && authUser) {
+        setUser(authUser);
+        setNewName(authUser.user_metadata?.full_name || "Demo Recruiter");
+        setLoading(false);
+        return;
+      }
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error || !user) {
         toast.error("Bạn cần đăng nhập để xem trang này!");
@@ -83,20 +92,22 @@ export default function ProfileContent() {
       setLoading(false);
     };
     fetchUser();
-  }, [supabase, router]);
+  }, [supabase, router, authUser, isDemoMode]);
 
   // SWR for Watch History
   const { data: swrHistory, isLoading: isHistoryLoading, mutate: mutateHistory } = useSWR(
     user ? ['watch_history', user.id] : null,
     async () => {
       let combinedHistory: any[] = [];
-      const { data, error } = await supabase
-        .from('watch_history')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false })
-        .limit(40);
-      if (!error && data) combinedHistory = data;
+      if (!isDemoMode) {
+        const { data, error } = await supabase
+          .from('watch_history')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(40);
+        if (!error && data) combinedHistory = data;
+      }
       try {
         const HISTORY_KEY = `cinestream-watch-history-${user.id}`;
         const localDataStr = localStorage.getItem(HISTORY_KEY);

@@ -11,8 +11,12 @@ import { getR2MoviePosterUrl } from "@/app/utils/r2ImageUrl";
 import { toast } from "react-hot-toast";
 import CommonModal from "@/app/components/UI/Modals/CommonModal";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "@/app/components/User/Auth/AuthContext";
+
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export default function LibraryPage() {
+  const { user: authUser } = useAuth();
   const supabase = createClient();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,7 +47,9 @@ export default function LibraryPage() {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const currentUser = isDemoMode
+        ? authUser
+        : (await supabase.auth.getUser()).data.user;
       if (!currentUser) {
         setIsLoading(false);
         return;
@@ -52,12 +58,14 @@ export default function LibraryPage() {
 
       // Fetch History
       let combinedHistory: any[] = [];
-      const { data: hData, error: hError } = await supabase
-        .from('watch_history')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('updated_at', { ascending: false });
-      if (!hError && hData) combinedHistory = hData;
+      if (!isDemoMode) {
+        const { data: hData, error: hError } = await supabase
+          .from('watch_history')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('updated_at', { ascending: false });
+        if (!hError && hData) combinedHistory = hData;
+      }
 
       try {
         const HISTORY_KEY = `cinestream-watch-history-${currentUser.id}`;
@@ -90,26 +98,27 @@ export default function LibraryPage() {
       setWatchHistory(finalHistory);
 
       // Fetch Watchlist
-      const { data: wData } = await supabase
-        .from('watchlist')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-      if (wData) setWatchlist(wData);
+      if (!isDemoMode) {
+        const { data: wData } = await supabase
+          .from('watchlist')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+        if (wData) setWatchlist(wData);
 
-      // Fetch Favorites
-      const { data: fData } = await supabase
-        .from('favorites')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-      if (fData) setFavorites(fData);
+        const { data: fData } = await supabase
+          .from('favorites')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+        if (fData) setFavorites(fData);
+      }
 
       setIsLoading(false);
     };
 
     init();
-  }, [supabase]);
+  }, [supabase, authUser]);
 
   const deleteItem = (id: string, type: 'history' | 'watchlist' | 'favorites', movieSlug: string, e?: React.MouseEvent) => {
     e?.preventDefault();

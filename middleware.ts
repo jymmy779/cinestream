@@ -17,6 +17,12 @@ export async function middleware(request: NextRequest) {
   // Portfolio demo mode: account state lives in localStorage on the client.
   // Middleware must not instantiate Supabase when no isolated demo project exists.
   if (!hasSupabaseConfig) {
+    const demoProtectedRoutes = ['/ca-nhan', '/thu-vien', '/lich-su', '/yeu-thich', '/xem-sau', '/thong-bao'];
+    const isDemoProtectedRoute = demoProtectedRoutes.some(route => pathname.startsWith(route));
+    const hasDemoSession = request.cookies.get('cinestream_demo_auth')?.value === '1';
+    if (isDemoProtectedRoute && !hasDemoSession) {
+      return NextResponse.redirect(new URL('/dang-nhap', request.url));
+    }
     return NextResponse.next();
   }
 

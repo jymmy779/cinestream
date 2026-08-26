@@ -13,6 +13,9 @@ import { Crown } from "lucide-react";
 import Skeleton from "@/app/components/UI/Skeleton/Skeleton";
 import { isOwner } from "@/app/utils/owner-utils";
 import { getUserAvatarUrl } from "@/app/utils/avatar-helper";
+import { useAuth } from "@/app/components/User/Auth/AuthContext";
+
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 interface MemberButtonProps {
     flatten?: boolean;
@@ -20,7 +23,7 @@ interface MemberButtonProps {
 }
 
 export default function MemberButton({ flatten = false, onClick }: MemberButtonProps) {
-    const [user, setUser] = useState<any>(null);
+    const [supabaseUser, setSupabaseUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showMenu, setShowMenu] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -30,6 +33,8 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
     const router = useRouter();
     const pathname = usePathname();
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const { user: demoUser, signOut: demoSignOut, isLoading: demoLoading } = useAuth();
+    const user = isDemoMode ? demoUser : supabaseUser;
 
     const fetchUnreadCount = useCallback(async (userId: string) => {
         if (!userId) {
@@ -66,10 +71,14 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
     }, [supabase]);
 
     useEffect(() => {
+        if (isDemoMode) {
+            setLoading(false);
+            return;
+        }
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user?.id || null;
-            setUser(session?.user || null);
+            setSupabaseUser(session?.user || null);
             setLoading(false);
             if (currentUserId) {
                 fetchUnreadCount(currentUserId);
@@ -80,7 +89,7 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             const currentUserId = session?.user?.id || null;
-            setUser(session?.user || null);
+            setSupabaseUser(session?.user || null);
             setLoading(false);
             if (currentUserId) {
                 fetchUnreadCount(currentUserId);
@@ -93,6 +102,7 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
     }, [supabase, fetchUnreadCount]);
 
     useEffect(() => {
+        if (isDemoMode) return;
         if (!user?.id) return;
 
         fetchUnreadCount(user.id);
@@ -142,14 +152,18 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
     }, [showMenu]);
 
     const handleLogout = async () => {
-        if (typeof window !== "undefined" && !navigator.onLine) {
+        if (!isDemoMode && typeof window !== "undefined" && !navigator.onLine) {
             setShowLogoutModal(false);
             toast.error("Vui lòng kết nối mạng để đăng xuất an toàn!", { id: "logout-error" });
             return;
         }
         setLoading(true);
-        await supabase.auth.signOut();
-        setUser(null); // Ép state về null ngay lập tức
+        if (isDemoMode) {
+            await demoSignOut();
+        } else {
+            await supabase.auth.signOut();
+            setSupabaseUser(null);
+        }
         setShowMenu(false);
         setShowLogoutModal(false);
         setLoading(false);
@@ -166,7 +180,7 @@ export default function MemberButton({ flatten = false, onClick }: MemberButtonP
         return null;
     }
 
-    if (loading && !showLogoutModal) {
+    if ((isDemoMode ? demoLoading : loading) && !showLogoutModal) {
         return (
             <Skeleton className="w-24 h-10" rounded="full" />
         );
