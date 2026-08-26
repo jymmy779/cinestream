@@ -92,12 +92,19 @@ export const mockTopics: TopicItem[] = [
 ];
 
 export default function TopicsClient({ initialTopics }: { initialTopics?: TopicItem[] }) {
-    const [topics, setTopics] = useState<TopicItem[]>(initialTopics || mockTopics);
-    const [isLoading, setIsLoading] = useState(!initialTopics);
+    const [topics, setTopics] = useState<TopicItem[]>(initialTopics?.length ? initialTopics : mockTopics);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if (initialTopics) {
+        if (initialTopics?.length) {
             setTopics(initialTopics);
+            setIsLoading(false);
+            return;
+        }
+
+        setTopics(mockTopics);
+
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
             setIsLoading(false);
             return;
         }

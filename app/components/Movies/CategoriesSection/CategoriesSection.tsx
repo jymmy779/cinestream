@@ -21,12 +21,18 @@ export default function CategoriesSection({ initialTopics }: { initialTopics?: a
     const [isBeginning, setIsBeginning] = useState(true);
     const [isEnd, setIsEnd] = useState(false);
     const [mounted, setMounted] = useState(false);
-    const [topics, setTopics] = useState<any[]>(initialTopics || mockTopics);
+    const [topics, setTopics] = useState<any[]>(initialTopics?.length ? initialTopics : mockTopics);
 
     useEffect(() => {
         setMounted(true);
-        if (initialTopics) {
+        if (initialTopics?.length) {
             setTopics(initialTopics);
+            return;
+        }
+
+        setTopics(mockTopics);
+
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
             return;
         }
 
