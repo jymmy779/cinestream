@@ -10,6 +10,15 @@ const MAINTENANCE_CACHE_TTL_MS = 5_000; // Cache 5 giây để phản hồi bậ
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hasSupabaseConfig = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  // Portfolio demo mode: account state lives in localStorage on the client.
+  // Middleware must not instantiate Supabase when no isolated demo project exists.
+  if (!hasSupabaseConfig) {
+    return NextResponse.next();
+  }
 
   // 0. Redirect non-www and/or HTTP to canonical SITE_URL (SEO & Indexing Fix)
   const host = request.headers.get('host') || '';

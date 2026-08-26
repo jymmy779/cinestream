@@ -18,6 +18,10 @@ import { getRandomDicebearAvatar } from "@/app/utils/avatar-helper";
 // Import Sidebar từ đúng thư mục
 import SidebarComp from "@/app/components/Layout/Sidebar/Sidebar";
 
+const DEMO_USER_KEY = "cinestream-demo-user";
+const DEMO_AUTH_EVENT = "cinestream-demo-auth-change";
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
 export default function AuthContent() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -37,6 +41,8 @@ export default function AuthContent() {
     if (savedEmail) {
       setEmail(savedEmail);
     }
+
+    if (isDemoMode) return;
 
     // 1. Kiểm tra session ngay lập tức khi vào trang
     const checkSession = async () => {
@@ -111,6 +117,10 @@ export default function AuthContent() {
   };
 
   const handleGoogleLogin = async () => {
+    if (isDemoMode) {
+      createDemoSession("demo@cinestream.dev", "Demo Recruiter");
+      return;
+    }
     setIsLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -137,6 +147,11 @@ export default function AuthContent() {
     const formEmail = (formData.get("email") as string) || email;
     const formPassword = (formData.get("password") as string) || password;
     const formFullName = !isLogin ? ((formData.get("name") as string) || fullName) : "";
+
+    if (isDemoMode) {
+      createDemoSession(formEmail || "demo@cinestream.dev", formFullName || "Demo Recruiter");
+      return;
+    }
 
     try {
       if (!captchaToken) {
@@ -232,6 +247,31 @@ export default function AuthContent() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const createDemoSession = (demoEmail: string, demoName: string) => {
+    const now = new Date().toISOString();
+    const demoUser = {
+      id: "cinestream-demo-user",
+      aud: "authenticated",
+      role: "authenticated",
+      email: demoEmail,
+      email_confirmed_at: now,
+      created_at: now,
+      updated_at: now,
+      app_metadata: { provider: "demo", providers: ["demo"] },
+      user_metadata: {
+        full_name: demoName,
+        avatar_url: getRandomDicebearAvatar(),
+      },
+      identities: [],
+    };
+
+    localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
+    localStorage.setItem("last_login_email", demoEmail);
+    window.dispatchEvent(new Event(DEMO_AUTH_EVENT));
+    toast.success("Bạn đang dùng tài khoản demo CineStream.");
+    navigateWithTransition("/", true);
   };
 
   // handleForgotPassword đã được thay thế bằng redirect sang /quen-mat-khau
@@ -344,15 +384,16 @@ export default function AuthContent() {
                       </div>
                     )}
 
-                    {/* Turnstile Captcha */}
-                    <div className="flex justify-center mt-4">
-                      <Turnstile
-                        ref={turnstileRef}
-                        siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
-                        onSuccess={(token) => setCaptchaToken(token)}
-                        options={{ theme: 'dark' }}
-                      />
-                    </div>
+                    {!isDemoMode && (
+                      <div className="flex justify-center mt-4">
+                        <Turnstile
+                          ref={turnstileRef}
+                          siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+                          onSuccess={(token) => setCaptchaToken(token)}
+                          options={{ theme: 'dark' }}
+                        />
+                      </div>
+                    )}
 
                     <button
                       type="submit"

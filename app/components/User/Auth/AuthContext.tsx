@@ -12,6 +12,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const DEMO_USER_KEY = "cinestream-demo-user";
+const DEMO_AUTH_EVENT = "cinestream-demo-auth-change";
+const isDemoMode = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
@@ -20,6 +23,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
 
     useEffect(() => {
+        if (isDemoMode) {
+            const syncDemoUser = () => {
+                try {
+                    const stored = localStorage.getItem(DEMO_USER_KEY);
+                    setUser(stored ? JSON.parse(stored) as User : null);
+                } catch {
+                    localStorage.removeItem(DEMO_USER_KEY);
+                    setUser(null);
+                }
+                setSession(null);
+                setIsLoading(false);
+            };
+
+            syncDemoUser();
+            window.addEventListener("storage", syncDemoUser);
+            window.addEventListener(DEMO_AUTH_EVENT, syncDemoUser);
+            return () => {
+                window.removeEventListener("storage", syncDemoUser);
+                window.removeEventListener(DEMO_AUTH_EVENT, syncDemoUser);
+            };
+        }
+
         const getInitialSession = async () => {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
@@ -46,6 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [supabase]);
 
     const signOut = async () => {
+        if (isDemoMode) {
+            localStorage.removeItem(DEMO_USER_KEY);
+            window.dispatchEvent(new Event(DEMO_AUTH_EVENT));
+            return;
+        }
         await supabase.auth.signOut();
     };
 
