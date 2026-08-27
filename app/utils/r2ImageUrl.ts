@@ -8,6 +8,7 @@
  */
 
 const R2_URL = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || "";
+const R2_THUMB_VERSION = "1920-v1";
 
 /**
  * Poster phim từ R2 (400px WebP)
@@ -22,7 +23,7 @@ export function getR2MoviePosterUrl(slug: string): string {
  */
 export function getR2MovieThumbUrl(slug: string): string {
     if (!slug || !R2_URL) return "";
-    return `${R2_URL}/images/movies/${slug}-thumb.webp`;
+    return `${R2_URL}/images/movies/${slug}-thumb.webp?v=${R2_THUMB_VERSION}`;
 }
 
 /**
