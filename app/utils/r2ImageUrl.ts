@@ -3,7 +3,7 @@
  *
  * Cấu trúc bucket:
  *   images/movies/{slug}-poster.webp   (400px, dùng cho card)
- *   images/movies/{slug}-thumb.webp    (800px, dùng cho slider/hero)
+ *   images/movies/{slug}-thumb.webp    (tối đa 1920px, dùng cho slider/hero)
  *   images/actors/{tmdb_person_id}.webp (200px, dùng cho sidebar)
  */
 
@@ -18,7 +18,7 @@ export function getR2MoviePosterUrl(slug: string): string {
 }
 
 /**
- * Thumbnail phim từ R2 (800px WebP – dùng cho Hero / Featured Slider)
+ * Thumbnail phim từ R2 (tối đa 1920px WebP – dùng cho Hero / Featured Slider)
  */
 export function getR2MovieThumbUrl(slug: string): string {
     if (!slug || !R2_URL) return "";
