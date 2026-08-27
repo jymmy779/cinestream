@@ -59,7 +59,7 @@ export default function WideMovieCard({ movie, priority = false, adZone = "wide_
 
                     {/* Text Info */}
                     <div className="flex-1 min-w-0 flex flex-col gap-1 pt-1.5 md:pt-3 items-center md:items-start text-center md:text-left">
-                        <h4 className="text-[13px] md:text-[15px] font-bold text-white truncate group-hover/link:text-[#D497FF] transition-colors drop-shadow-sm mb-0.5">
+                        <h4 className="w-full text-[13px] md:text-[15px] font-bold text-white truncate group-hover/link:text-[#D497FF] transition-colors drop-shadow-sm mb-0.5">
                             {decodeHtml(movie.name)}
                         </h4>
                         <span className="text-[10px] md:text-xs text-white/40 truncate font-medium mb-1.5">
