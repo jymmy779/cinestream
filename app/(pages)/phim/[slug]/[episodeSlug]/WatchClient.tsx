@@ -415,6 +415,16 @@ export default function WatchClient({
         return found?.link_embed || null;
     }, [isEmbedServer, processedEpisodes, activeServerIndex, currentEpisodeSlug]);
 
+    const isCurrentEpisodeUnavailable = useMemo(() => {
+        const server = processedEpisodes[activeServerIndex];
+        if (!server) return true;
+
+        const episode = server.server_data.find((ep) => getFriendlyEpisodeSlug(ep.slug) === currentEpisodeSlug);
+        if (!episode) return true;
+
+        return isEmbedServer ? !episode.link_embed?.trim() : !episode.link_m3u8?.trim();
+    }, [processedEpisodes, activeServerIndex, currentEpisodeSlug, isEmbedServer]);
+
     const isTrailerEpisode = useMemo(() => {
         const epName = (currentEpisode.name || '').toLowerCase();
         return epName === 'trailer' || epName.includes('trailer') || currentEpisodeSlug.includes('trailer');
@@ -1497,8 +1507,8 @@ export default function WatchClient({
                             portalTarget
                         )}
 
-                        {/* Episode List Trigger Button (Top Right) */}
-                        {portalTarget && createPortal(
+                        {/* Episode List Trigger Button (ArtPlayer only; embed keeps its native controls unobstructed) */}
+                        {portalTarget && !isEmbedServer && createPortal(
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -1524,6 +1534,30 @@ export default function WatchClient({
                                 </div>
                             </div>,
                             portalTarget
+                        )}
+
+                        {/* Selected server does not provide the current episode */}
+                        {containerNode && createPortal(
+                            <div
+                                className={`absolute inset-0 z-[205] bg-[#08090c]/90 flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300 ${isCurrentEpisodeUnavailable ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                            >
+                                <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-amber-500/10 border border-amber-400/20 flex items-center justify-center mb-4">
+                                    <AlertTriangle size={26} className="text-amber-400 md:w-8 md:h-8" />
+                                </div>
+                                <h3 className="text-white text-base md:text-xl font-bold tracking-tight mb-2">
+                                    Nguồn này chưa có tập hiện tại
+                                </h3>
+                                <p className="text-white/50 text-xs md:text-sm mb-5">
+                                    Vui lòng chọn nguồn phát khác để tiếp tục xem.
+                                </p>
+                                <button
+                                    onClick={() => document.getElementById('player-server-controls')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                    className="px-5 py-2.5 rounded-full bg-[#D497FF] text-black text-xs md:text-sm font-bold hover:bg-[#c77df5] active:scale-95 transition-all cursor-pointer"
+                                >
+                                    Chọn nguồn khác
+                                </button>
+                            </div>,
+                            containerNode
                         )}
 
                         {/* Episode List Overlay Panel */}
@@ -1681,7 +1715,7 @@ export default function WatchClient({
                 </div>
 
                 {!isFullscreenActive && (
-                    <div className="relative z-20">
+                    <div id="player-server-controls" className="relative z-20">
                         <PlayerControls
                             isAutoNext={isAutoNext}
                             onToggleAutoNext={toggleAutoNext}

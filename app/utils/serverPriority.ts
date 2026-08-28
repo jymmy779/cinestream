@@ -49,8 +49,8 @@ function getSourcePriority(serverName?: string | null): number {
     const normalized = (serverName || "").toUpperCase();
     if (normalized.includes("ĐỘC QUYỀN") || normalized.includes("EXCLUSIVE") || normalized.includes("SONG NGỮ")) return 100;
     if (normalized.includes(" KK")) return 80;
-    if (normalized.includes(" VS")) return 60;
-    if (normalized.includes(" NC")) return 40;
+    if (normalized.includes(" NC")) return 60;
+    if (normalized.includes(" VS")) return 40;
     if (normalized.includes(" OP")) return 20;
     return 50;
 }

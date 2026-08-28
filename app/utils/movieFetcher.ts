@@ -141,7 +141,7 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
             // Sắp xếp Server thông minh:
             // 1. Phim đang chiếu: Nguồn có tập mới nhất (Max Episode Number) đứng đầu
             // 2. Phim lẻ hoặc cùng tập: Ưu tiên chất lượng từ 2K trở lên
-            // 3. Sau đó ưu tiên M3U8 và độ ổn định nguồn KK > VS > NC > OP
+            // 3. Sau đó ưu tiên M3U8 và độ ổn định nguồn KK > NC > VS > OP
             const finalEpisodes = sortEpisodeServers(uniqueServersList, isSeriesOngoing);
             
             let calculatedEpisodeCurrent = exclusiveMovie.type === "single" ? "Full" : "";
