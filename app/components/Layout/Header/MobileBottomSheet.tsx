@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type PointerEvent } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import TransitionLink from "../../UI/Transition/TransitionLink";
 import { X, Home, SlidersHorizontal, CalendarDays, User, Shuffle, MessageSquare, List, Grid, Globe, ChevronRight, ChevronLeft } from "lucide-react";
@@ -62,6 +62,14 @@ export default function MobileBottomSheet({ isOpen, onClose, categories, countri
         if (pathname !== href) onClose();
     };
 
+    const handleLinkIntent = (event: PointerEvent<HTMLDivElement>) => {
+        const anchor = (event.target as Element).closest<HTMLAnchorElement>('a[href]');
+        const href = anchor?.getAttribute('href');
+        if (href?.startsWith('/') && href !== pathname) {
+            router.prefetch(href);
+        }
+    };
+
     const quickLinks = [
         { icon: Home, label: "Trang chủ", href: "/" },
         { icon: SlidersHorizontal, label: "Lọc phim", href: "/danh-sach/phim-moi-cap-nhat" },
@@ -114,7 +122,7 @@ export default function MobileBottomSheet({ isOpen, onClose, categories, countri
                 </div>
 
                 {/* Content Area */}
-                <div className="p-5 flex-1 pb-10 overflow-auto relative">
+                <div className="p-5 flex-1 pb-10 overflow-auto relative" onPointerDownCapture={handleLinkIntent}>
 
                     {/* --- MAIN VIEW --- */}
                     {activeView === 'main' && (

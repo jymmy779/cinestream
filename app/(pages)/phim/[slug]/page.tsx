@@ -79,7 +79,6 @@ export async function generateMetadata({
 
 import { Suspense } from "react";
 import MovieDetailLoading from "./loading";
-import { getServerActorsFromTMDB } from "@/app/utils/serverTmdbUtils";
 
 export default function MoviePage({
     params,
@@ -114,38 +113,8 @@ async function MovieDataContent({
         notFound();
     }
 
-    // SSR fetch actors to prevent skeleton flash
-    let initialActors: any[] = [];
-    if (detail.movie.tmdb?.id) {
-        const tmdbType = detail.movie.tmdb.type === 'tv' ? 'tv' : 'movie';
-        initialActors = await getServerActorsFromTMDB(detail.movie.tmdb.id.toString(), tmdbType);
-    } else {
-        try {
-            // Dùng fetch của Nextjs với cache cực lâu
-            const INTERNAL_API_URL = process.env.NEXT_PUBLIC_INTERNAL_API_URL || 'http://127.0.0.1:5000/api';
-            const res = await fetch(`${INTERNAL_API_URL}/phim/${slug}/peoples`, { next: { revalidate: 2592000 } });
-            if (res.ok) {
-                const contentType = res.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    const data = await res.json();
-                    if (data.success || data.status === "success") {
-                        const peoples = data.data?.peoples;
-                        if (peoples && Array.isArray(peoples)) {
-                            initialActors = peoples.map((actor: any) => ({
-                                id: actor.tmdb_people_id || Math.random(),
-                                name: actor.name,
-                                profile_path: actor.profile_path,
-                                character: actor.character
-                            }));
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Error fetching peoples fallback:", error);
-        }
-    }
-
+    // Actors load client-side so they do not block the initial movie detail response.
+    const initialActors: any[] = [];
 
     // Schema dữ liệu cấu trúc (JSON-LD) cho SEO - Nâng cấp với đầy đủ thông tin & Breadcrumbs
     const isSeries = detail.movie.type !== 'single';

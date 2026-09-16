@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 /**
  * WakeUpMonitor: Theo dõi khi người dùng quay lại tab sau một thời gian dài.
@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
  */
 export default function WakeUpMonitor() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isMovieRoute = pathname.startsWith("/phim/");
   const lastActiveRef = useRef<number>(Date.now());
   const REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 phút
 
@@ -19,7 +21,7 @@ export default function WakeUpMonitor() {
         const timeSinceLastActive = now - lastActiveRef.current;
 
         // Nếu người dùng quay lại sau hơn 15 phút
-        if (timeSinceLastActive > REFRESH_THRESHOLD) {
+        if (timeSinceLastActive > REFRESH_THRESHOLD && !isMovieRoute) {
           // Sử dụng router.refresh() để Next.js lấy lại dữ liệu Server Components 
           // mà không làm trắng trang (flicker)
           router.refresh();
@@ -38,7 +40,7 @@ export default function WakeUpMonitor() {
 
     // Lắng nghe sự kiện quay lại từ Back/Forward Cache (Mobile hay dùng cái này)
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
+      if (event.persisted && !isMovieRoute) {
         router.refresh();
       }
     };
@@ -49,7 +51,7 @@ export default function WakeUpMonitor() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pageshow", handlePageShow);
     };
-  }, [router]);
+  }, [router, isMovieRoute]);
 
   // Component này không render gì ra UI
   return null;

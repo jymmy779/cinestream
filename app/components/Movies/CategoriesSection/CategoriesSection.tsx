@@ -53,11 +53,11 @@ export default function CategoriesSection({ initialTopics }: { initialTopics?: a
 
     if (!mounted) {
         return (
-            <Container as="section" className="relative z-30 mt-4 sm:mt-6 md:mt-8 mb-10">
+            <Container as="section" className="relative z-30 mt-4 sm:mt-6 md:mt-8 min-h-[186px] md:min-h-[206px] lg:min-h-[236px]">
                 <div className="h-8 w-[250px] bg-white/10 rounded-lg animate-pulse mb-6"></div>
                 <div className="flex gap-2 sm:gap-3 lg:gap-[14px] overflow-hidden">
                     {[...Array(5)].map((_, i) => (
-                        <div key={i} className="w-[200px] lg:w-[320px] h-[100px] lg:h-[160px] bg-white/5 rounded-xl animate-pulse shrink-0"></div>
+                        <div key={i} className="w-[200px] md:w-[240px] lg:w-[280px] h-[110px] md:h-[130px] lg:h-[150px] bg-white/5 rounded-xl animate-pulse shrink-0"></div>
                     ))}
                 </div>
             </Container>
@@ -65,7 +65,7 @@ export default function CategoriesSection({ initialTopics }: { initialTopics?: a
     }
 
     return (
-        <Container as="section" className="relative z-30 mt-4 sm:mt-6 md:mt-8">
+        <Container as="section" className="relative z-30 mt-4 sm:mt-6 md:mt-8 min-h-[186px] md:min-h-[206px] lg:min-h-[236px]">
             {/* Header Section */}
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl lg:text-[32px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-white via-[#E9D5FF] to-[#D497FF] tracking-tight drop-shadow-sm">Bạn Đang Quan Tâm Gì?</h2>
@@ -96,7 +96,7 @@ export default function CategoriesSection({ initialTopics }: { initialTopics?: a
                     }}
                     className="!pb-6 !pt-2"
                 >
-                    {topics.map((topic) => {
+                    {topics.map((topic, index) => {
                         const Icon = getIconComponent(topic.icon);
                         return (
                             <SwiperSlide key={topic.id} className="!w-[200px] md:!w-[240px] lg:!w-[280px]">
@@ -135,7 +135,7 @@ export default function CategoriesSection({ initialTopics }: { initialTopics?: a
                                                 fill
                                                 sizes="(max-width: 768px) 50vw, 300px"
                                                 className="object-cover"
-                                                priority
+                                                priority={index === 0}
                                             />
                                         </div>
                                     </div>

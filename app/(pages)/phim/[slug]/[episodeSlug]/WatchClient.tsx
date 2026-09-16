@@ -718,7 +718,7 @@ export default function WatchClient({
                 autoPlayback: false,
                 airplay: false,
                 hotkey: false,
-                lock: true,
+                lock: false,
                 gesture: false,
                 ...({ tooltips: false } as any),
                 poster: getImageUrl(movie.thumb_url, { width: 1280, quality: 85 }),
@@ -1214,7 +1214,7 @@ export default function WatchClient({
 
             {/* === VIDEO PLAYER & CONTROLS SECTION === */}
             <div className={`w-full ${isFullscreenActive ? '!max-w-none !p-0 !m-0 !w-full !h-full' : 'max-w-[1440px] 2xl:max-w-[1560px] px-3 sm:px-5 lg:px-8 mx-auto'}`}>
-                <div ref={fullscreenWrapperRef} className={`transition-all duration-300 relative w-full ${isFullscreenActive ? '!max-w-none !m-0 !fixed !inset-0 !z-[99999] !w-full !h-full !p-0 bg-black' : ''}`} style={isFullscreenActive ? { padding: 'env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)', backgroundColor: '#000' } : undefined}>
+                <div ref={fullscreenWrapperRef} className={`transition-all duration-300 relative w-full ${isFullscreenActive ? '!max-w-none !m-0 !fixed !inset-0 !z-[99999] !w-full !h-full !p-0 bg-black' : ''}`} style={isFullscreenActive ? { backgroundColor: '#000' } : undefined}>
                     <div ref={containerCallbackRef} className={`watch-player-container w-full bg-black/40 border border-white/5 relative overflow-hidden transition-all duration-300 z-10 ${showEndOverlay ? 'hide-large-play' : ''} [--plyr-color-main:#f59e0b] ${isFullscreenActive ? '!rounded-none !border-0 !w-full !h-full !max-w-none !max-h-none !aspect-auto' : 'aspect-video w-full max-w-full lg:max-h-[calc(100vh-210px)] lg:max-w-[calc((100vh-210px)*16/9)] mx-auto rounded-2xl'}`}>
                         <style jsx global>{`
                         @media (max-height: 600px) {
