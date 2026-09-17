@@ -27,6 +27,9 @@ const isAppleSafari = () => {
 };
 
 const isIOSDevice = isAppleTouchDevice;
+const isAppleDevice = () =>
+    typeof navigator !== 'undefined' &&
+    (isAppleTouchDevice() || /Mac/.test(navigator.platform) || /Macintosh/.test(navigator.userAgent));
 
 // Helper to extract YouTube video ID from various URL formats
 const getYouTubeId = (url: string): string | null => {
@@ -224,6 +227,10 @@ export default function WatchClient({
     const isTheaterMode = isMounted ? settings.theaterMode : false;
     const isAutoNext = isMounted ? settings.autoNext : true;
     const isAutoPlay = isMounted ? settings.autoPlay : true;
+    const useNativeApplePlayer = isMounted && isAppleDevice();
+
+    const nativeVideoRef = useRef<HTMLVideoElement>(null);
+
 
     const setIsExpanded = (val: boolean) => { if (val !== settings.theaterMode) settings.toggleTheaterMode(); };
     const setIsTheaterMode = (val: boolean) => { if (val !== settings.theaterMode) settings.toggleTheaterMode(); };
@@ -535,6 +542,13 @@ export default function WatchClient({
 
         // ─── iOS & iPadOS: Gọi native fullscreen trực tiếp trên thẻ <video> ───
         // iOS không support fullscreen trên thẻ <div>, nhưng support trên thẻ <video>
+        if (useNativeApplePlayer && nativeVideoRef.current) {
+            const video = nativeVideoRef.current as any;
+            if (video.webkitEnterFullscreen) {
+                video.webkitEnterFullscreen();
+                return;
+            }
+        }
         if (isAppleTouchDevice() && artRef.current?.video) {
             const video = artRef.current.video as any;
             if (video.webkitEnterFullscreen) {
@@ -580,7 +594,7 @@ export default function WatchClient({
                 setIsCSSFullscreen(true);
             }
         }
-    }, []);
+    }, [useNativeApplePlayer]);
 
     const toggleAutoNext = useCallback(() => {
         settings.toggleAutoNext();
@@ -671,8 +685,97 @@ export default function WatchClient({
         selectEpisode(getFriendlyEpisodeSlug(nextEpisode.slug));
     }, [nextEpisode, selectEpisode]);
 
+    const handleNativeLoadedMetadata = useCallback(() => {
+        const video = nativeVideoRef.current;
+        if (!video) return;
+        if (fallbackTimeRef.current > 0) {
+            video.currentTime = fallbackTimeRef.current;
+        }
+    }, []);
+
+    const handleNativeTimeUpdate = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = e.currentTarget;
+        handleTimeUpdateRef.current?.(video.currentTime, video.duration, video.paused);
+    }, []);
+
+    const handleNativeEnded = useCallback(() => {
+        if (autoNextRef.current) {
+            goToNextEpisode();
+        }
+    }, [goToNextEpisode]);
+
+    const handleNativeError = useCallback(() => {
+        setHasError(true);
+    }, []);
+
     useEffect(() => {
-        if (isEmbedServer || isTrailerMode) return;
+        if (!useNativeApplePlayer || isEmbedServer || isTrailerMode) return;
+        const video = nativeVideoRef.current;
+        if (!video || !videoSrc) return;
+        let hls: Hls | null = null;
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoSrc;
+        } else if (Hls.isSupported()) {
+            // Chrome/Firefox trên macOS vẫn dùng controls video native.
+            hls = new Hls();
+            hls.attachMedia(video);
+            hls.loadSource(videoSrc);
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+                if (data.fatal) setHasError(true);
+            });
+        } else {
+            setHasError(true);
+        }
+        return () => {
+            hls?.destroy();
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+        };
+    }, [useNativeApplePlayer, isEmbedServer, isTrailerMode, videoSrc]);
+
+    useEffect(() => {
+        if (!useNativeApplePlayer) return;
+        const fetchHistoryTime = async () => {
+            let startFrom = 0;
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            if (currentUser) {
+                const { data: history } = await supabase
+                    .from('watch_history')
+                    .select('watched_seconds')
+                    .eq('user_id', currentUser.id)
+                    .eq('movie_slug', slug)
+                    .eq('episode_slug', currentEpisodeSlug)
+                    .maybeSingle();
+                if (history && history.watched_seconds > 10) {
+                    startFrom = history.watched_seconds;
+                }
+            }
+            if (startFrom <= 10) {
+                try {
+                    const HISTORY_KEY = currentUser ? `cinestream-watch-history-${currentUser.id}` : 'cinestream-guest-watch-history';
+                    const historyStr = localStorage.getItem(HISTORY_KEY);
+                    if (historyStr) {
+                        const history = JSON.parse(historyStr);
+                        const item = history[`${slug}/${currentEpisodeSlug}`];
+                        if (item && item.watched_seconds > 10) {
+                            startFrom = item.watched_seconds;
+                        }
+                    }
+                } catch (e) { }
+            }
+            if (startFrom > 0) {
+                fallbackTimeRef.current = startFrom;
+                if (nativeVideoRef.current && nativeVideoRef.current.readyState >= 1) {
+                    nativeVideoRef.current.currentTime = startFrom;
+                }
+            }
+        };
+        fetchHistoryTime();
+    }, [useNativeApplePlayer, slug, currentEpisodeSlug, supabase]);
+
+    useEffect(() => {
+        if (isEmbedServer || isTrailerMode || useNativeApplePlayer) return;
 
         let isMounted = true;
         const container = artContainerRef.current;
@@ -988,7 +1091,7 @@ export default function WatchClient({
                 hlsRef.current = null;
             }
         };
-    }, [videoSrc, nextEpisode, slug, isEmbedServer, goToNextEpisode]);
+    }, [useNativeApplePlayer, isTrailerMode, videoSrc, nextEpisode, slug, isEmbedServer, goToNextEpisode]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -1263,7 +1366,7 @@ export default function WatchClient({
 
     if (!movie || !currentEpisode) return null;
 
-    const portalTarget = isEmbedServer ? containerNode : artContainer;
+    const portalTarget = useNativeApplePlayer && !isEmbedServer ? null : (isEmbedServer ? containerNode : artContainer);
 
     return (
         <div className={`${isFullscreenActive ? 'fixed inset-0 z-[99999] bg-black p-0 m-0 w-screen h-screen overflow-hidden' : 'pt-27 pb-12 min-h-screen relative'} transition-all duration-300 animate-fade-in`}>
@@ -1450,13 +1553,45 @@ export default function WatchClient({
                         }
                     `}</style>
 
-                        {/* HLS Video Container */}
-                        <div className={`w-full h-full absolute inset-0 z-0 ${isEmbedServer ? 'hidden' : 'block'}`}>
-                            <div ref={artContainerRef} className="w-full h-full"></div>
-                        </div>
+                        {/* Native Apple Video Player */}
+                        {!isTrailerMode && !isEmbedServer && useNativeApplePlayer && (
+                            <div className="w-full h-full absolute inset-0 z-0 bg-black flex items-center justify-center">
+                                <video
+                                    ref={nativeVideoRef}
+                                    key={videoSrc}
+                                    controls
+                                    playsInline
+                                    webkit-playsinline="true"
+                                    x-webkit-airplay="allow"
+                                    poster={getImageUrl(movie.thumb_url, { width: 1280, quality: 85 })}
+                                    className="w-full h-full object-contain bg-black"
+                                    onTimeUpdate={handleNativeTimeUpdate}
+                                    onLoadedMetadata={handleNativeLoadedMetadata}
+                                    onEnded={handleNativeEnded}
+                                    onError={handleNativeError}
+                                >
+                                    {!hasCustomSubtitles && currentEpisode.link_vtt && (
+                                        <track
+                                            kind="captions"
+                                            label="Tiếng Việt"
+                                            srcLang="vi"
+                                            src={currentEpisode.link_vtt}
+                                            default
+                                        />
+                                    )}
+                                </video>
+                            </div>
+                        )}
+
+                        {/* HLS Video Container with Artplayer (Windows / Android) */}
+                        {!useNativeApplePlayer && (
+                            <div className={`w-full h-full absolute inset-0 z-0 ${isEmbedServer ? 'hidden' : 'block'}`}>
+                                <div ref={artContainerRef} className="w-full h-full"></div>
+                            </div>
+                        )}
 
                         {/* Double-tap visual indicators (mobile/tablet) */}
-                        {!isEmbedServer && (
+                        {!isEmbedServer && !useNativeApplePlayer && (
                             <>
                                 {/* Tap ripples container */}
                                 <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
