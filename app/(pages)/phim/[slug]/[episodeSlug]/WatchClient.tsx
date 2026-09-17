@@ -10,11 +10,23 @@ import { useRouter } from "next/navigation";
 import Hls from "hls.js";
 import Artplayer from "artplayer";
 
-// Detect iOS Safari — không support requestFullscreen() trên div element
-const isIOSDevice = () =>
-    typeof navigator !== 'undefined' &&
-    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(window as any).MSStream;
+// Detect iOS & iPadOS — iPadOS 13+ gửi UA là 'Macintosh' nhưng có navigator.maxTouchPoints > 1
+const isAppleTouchDevice = () => {
+    if (typeof navigator === 'undefined') return false;
+    return (
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    );
+};
+
+// Detect Apple Safari (cả iOS, iPadOS và macOS Safari)
+const isAppleSafari = () => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent.toLowerCase();
+    return ua.includes('safari') && !ua.includes('chrome') && !ua.includes('chromium') && !ua.includes('android');
+};
+
+const isIOSDevice = isAppleTouchDevice;
 
 // Helper to extract YouTube video ID from various URL formats
 const getYouTubeId = (url: string): string | null => {
@@ -461,7 +473,17 @@ export default function WatchClient({
     }, [activeTrailerId]);
 
     useEffect(() => {
-        if (embedSrc) setIsIframeLoading(true);
+        if (embedSrc) {
+            setIsIframeLoading(true);
+            // Fallback timeout: nếu nguồn nhúng bị chặn tracker/quảng cáo hoặc load chậm khiến iframe onLoad không kích hoạt,
+            // tự động tắt overlay loading sau 3 giây để người dùng mở trình phát bình thường.
+            const timer = setTimeout(() => {
+                setIsIframeLoading(false);
+            }, 3000);
+            return () => clearTimeout(timer);
+        } else {
+            setIsIframeLoading(false);
+        }
     }, [embedSrc]);
 
     useEffect(() => {
@@ -511,9 +533,9 @@ export default function WatchClient({
         const wrapper = fullscreenWrapperRef.current;
         if (!wrapper) return;
 
-        // ─── iOS Safari: Gọi native fullscreen trực tiếp trên thẻ <video> ───
+        // ─── iOS & iPadOS: Gọi native fullscreen trực tiếp trên thẻ <video> ───
         // iOS không support fullscreen trên thẻ <div>, nhưng support trên thẻ <video>
-        if (isIOSDevice() && artRef.current?.video) {
+        if (isAppleTouchDevice() && artRef.current?.video) {
             const video = artRef.current.video as any;
             if (video.webkitEnterFullscreen) {
                 video.webkitEnterFullscreen();
@@ -716,7 +738,7 @@ export default function WatchClient({
                 backdrop: true,
                 playsInline: true,
                 autoPlayback: false,
-                airplay: false,
+                airplay: true,
                 hotkey: false,
                 lock: false,
                 gesture: false,
@@ -734,7 +756,47 @@ export default function WatchClient({
                 },
                 customType: {
                     m3u8: function (video, url, art) {
-                        if (Hls.isSupported()) {
+                        // ─── APPLE ECOSYSTEM (iOS, iPadOS, macOS Safari): Ưu tiên tuyệt đối Native HLS của Apple ───
+                        // Tận dụng tối đa bộ giải mã phần cứng AVPlayer, tiết kiệm pin, hỗ trợ AirPlay và PiP native
+                        const useNativeAppleHls = (isAppleSafari() || isAppleTouchDevice()) && Boolean(video.canPlayType('application/vnd.apple.mpegurl'));
+
+                        if (useNativeAppleHls) {
+                            video.src = url;
+                            (video as any).setAttribute?.('x-webkit-airplay', 'allow');
+                            (video as any).setAttribute?.('webkit-playsinline', 'true');
+                            (video as any).setAttribute?.('playsinline', 'true');
+
+                            const onLoadedMetadata = () => {
+                                if (startFrom > 0) {
+                                    video.currentTime = startFrom;
+                                }
+                                if (!hasCustomSubtitles && currentEpisode.link_vtt) {
+                                    const existingTracks = video.querySelectorAll('track');
+                                    existingTracks.forEach(t => t.remove());
+
+                                    const track = document.createElement('track');
+                                    track.kind = 'captions';
+                                    track.label = 'Vietnamese';
+                                    track.srclang = 'vi';
+                                    track.src = currentEpisode.link_vtt;
+                                    track.default = true;
+                                    video.appendChild(track);
+                                }
+                            };
+                            video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+
+                            const onNativeError = () => {
+                                setHasError(true);
+                            };
+                            video.addEventListener('error', onNativeError, { once: true });
+
+                            // Lắng nghe sự kiện fullscreen native của iOS/iPadOS trên thẻ video
+                            const onWebKitBeginFullscreen = () => setIsFullscreen(true);
+                            const onWebKitEndFullscreen = () => setIsFullscreen(false);
+                            video.addEventListener('webkitbeginfullscreen', onWebKitBeginFullscreen);
+                            video.addEventListener('webkitendfullscreen', onWebKitEndFullscreen);
+                        } else if (Hls.isSupported()) {
+                            // ─── WINDOWS / ANDROID / CHROME / FIREFOX: Dùng hls.js qua MSE ───
                             if (art.hls) (art.hls as Hls).destroy();
                             const hls = new Hls({
                                 startPosition: startFrom > 0 ? startFrom : -1,
@@ -774,6 +836,7 @@ export default function WatchClient({
                                 }
                             });
                         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            // Fallback chung nếu hls.js không hỗ trợ
                             video.src = url;
                             if (startFrom > 0) {
                                 const onLoadedMetadata = () => {
@@ -1473,13 +1536,16 @@ export default function WatchClient({
                         {!isTrailerMode && isEmbedServer && embedSrc && (
                             <>
                                 <iframe
+                                    key={embedSrc}
                                     src={embedSrc}
                                     allowFullScreen
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                                    referrerPolicy="origin"
                                     onLoad={() => setIsIframeLoading(false)}
                                     className="w-full h-full border-0 absolute inset-0 z-[5]"
                                 />
                                 {isIframeLoading && (
-                                    <div className="absolute inset-0 z-[200] bg-[#0F1115] flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300">
+                                    <div className="absolute inset-0 z-[200] bg-[#0F1115] flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300 pointer-events-none">
                                         <LoadingSpinner size="xl" className="mb-4 md:mb-6" />
                                         <div className="transition-all duration-500 delay-100">
                                             <h3 className="text-white text-md md:text-lg lg:text-xl font-bold tracking-tight mb-2">Đang kết nối Server...</h3>
