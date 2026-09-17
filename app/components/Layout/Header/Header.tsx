@@ -3,7 +3,6 @@
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import TransitionLink from "@/app/components/UI/Transition/TransitionLink";
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import Image from "next/image";
 import { X } from "lucide-react";
@@ -19,6 +18,10 @@ import LoginPromptModal from "@/app/components/UI/Modals/LoginPromptModal";
 import { getUserAvatarUrl } from "@/app/utils/avatar-helper";
 
 import { INTERNAL_API_URL } from "@/app/utils/apiConfig";
+
+function MobileNavActiveBackground() {
+    return <span aria-hidden="true" className="mobile-nav-active-background" />;
+}
 
 export default function Header() {
     const pathname = usePathname();
@@ -120,7 +123,9 @@ export default function Header() {
 
     const navigateFromBottomBar = (href: string) => {
         setOptimisticTab(href);
-        requestAnimationFrame(() => router.push(href));
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => router.push(href));
+        });
     };
     const activeRoute = optimisticTab ?? pathname;
     const isHomeActive = activeRoute === '/' && !hasSearchQuery && !isMenuOpen;
@@ -259,13 +264,14 @@ export default function Header() {
                             if (isHomeActive) return;
                             navigateFromBottomBar('/');
                         }}
-                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu transition-[color,transform] duration-150 ease-out active:scale-90 ${isHomeActive
-                            ? "bg-[#D497FF]/15 text-[#D497FF]"
-                            : "bg-transparent text-white/50 hover:text-white/80"
+                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu ${isHomeActive
+                            ? "text-[#D497FF]"
+                            : "text-white/50 hover:text-white/80"
                             }`}
                     >
-                        <svg className="shrink-0 transition-transform duration-200 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isHomeActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                        <span className={`text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isHomeActive ? "opacity-100" : "opacity-60"
+                        {isHomeActive && <MobileNavActiveBackground />}
+                        <svg className="relative z-10 shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isHomeActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                        <span className={`relative z-10 text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isHomeActive ? "opacity-100" : "opacity-60"
                             }`}>
                             Trang chủ
                         </span>
@@ -279,13 +285,14 @@ export default function Header() {
                             if (isKhamPhaActive) return;
                             navigateFromBottomBar('/danh-sach/phim-moi-cap-nhat');
                         }}
-                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu transition-[color,transform] duration-150 ease-out active:scale-90 ${isKhamPhaActive
-                            ? "bg-[#D497FF]/15 text-[#D497FF]"
-                            : "bg-transparent text-white/50 hover:text-white/80"
+                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu ${isKhamPhaActive
+                            ? "text-[#D497FF]"
+                            : "text-white/50 hover:text-white/80"
                             }`}
                     >
-                        <svg className="shrink-0 transition-transform duration-200 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isKhamPhaActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" /></svg>
-                        <span className={`text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isKhamPhaActive ? "opacity-100" : "opacity-60"
+                        {isKhamPhaActive && <MobileNavActiveBackground />}
+                        <svg className="relative z-10 shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isKhamPhaActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" /></svg>
+                        <span className={`relative z-10 text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isKhamPhaActive ? "opacity-100" : "opacity-60"
                             }`}>
                             Khám phá
                         </span>
@@ -302,13 +309,14 @@ export default function Header() {
                                 setShowLoginPrompt(true);
                             }
                         }}
-                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu transition-[color,transform] duration-150 ease-out active:scale-90 ${isPlaylistActive
-                            ? "bg-[#D497FF]/15 text-[#D497FF]"
-                            : "bg-transparent text-white/50 hover:text-white/80"
+                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu ${isPlaylistActive
+                            ? "text-[#D497FF]"
+                            : "text-white/50 hover:text-white/80"
                             }`}
                     >
-                        <svg className="shrink-0 transition-transform duration-200 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isPlaylistActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="m16 6 4 14" /><path d="M12 6v14" /><path d="M8 8v12" /><path d="M4 4v16" /></svg>
-                        <span className={`text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isPlaylistActive ? "opacity-100" : "opacity-60"
+                        {isPlaylistActive && <MobileNavActiveBackground />}
+                        <svg className="relative z-10 shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isPlaylistActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="m16 6 4 14" /><path d="M12 6v14" /><path d="M8 8v12" /><path d="M4 4v16" /></svg>
+                        <span className={`relative z-10 text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isPlaylistActive ? "opacity-100" : "opacity-60"
                             }`}>
                             Playlist
                         </span>
@@ -322,13 +330,14 @@ export default function Header() {
                             if (isLichChieuActive) return;
                             navigateFromBottomBar('/danh-sach/phim-chieu-rap');
                         }}
-                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu transition-[color,transform] duration-150 ease-out active:scale-90 ${isLichChieuActive
-                            ? "bg-[#D497FF]/15 text-[#D497FF]"
-                            : "bg-transparent text-white/50 hover:text-white/80"
+                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu ${isLichChieuActive
+                            ? "text-[#D497FF]"
+                            : "text-white/50 hover:text-white/80"
                             }`}
                     >
-                        <svg className="shrink-0 transition-transform duration-200 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isLichChieuActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" /></svg>
-                        <span className={`text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isLichChieuActive ? "opacity-100" : "opacity-60"
+                        {isLichChieuActive && <MobileNavActiveBackground />}
+                        <svg className="relative z-10 shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isLichChieuActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /><path d="M8 14h.01" /><path d="M12 14h.01" /><path d="M16 14h.01" /><path d="M8 18h.01" /><path d="M12 18h.01" /><path d="M16 18h.01" /></svg>
+                        <span className={`relative z-10 text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isLichChieuActive ? "opacity-100" : "opacity-60"
                             }`}>
                             Lịch chiếu
                         </span>
@@ -345,19 +354,20 @@ export default function Header() {
                                 setShowLoginPrompt(true);
                             }
                         }}
-                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu transition-[color,transform] duration-150 ease-out active:scale-90 ${isCaNhanActive
-                            ? "bg-[#D497FF]/15 text-[#D497FF]"
-                            : "bg-transparent text-white/50 hover:text-white/80"
+                        className={`relative w-[52px] md:w-[64px] h-[46px] md:h-[50px] overflow-hidden rounded-2xl flex flex-col items-center justify-center gap-0.5 transform-gpu ${isCaNhanActive
+                            ? "text-[#D497FF]"
+                            : "text-white/50 hover:text-white/80"
                             }`}
                     >
+                        {isCaNhanActive && <MobileNavActiveBackground />}
                         {isMounted && user ? (
-                            <div className={`shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px] rounded-full overflow-hidden border ${isCaNhanActive ? 'border-[#D497FF]' : 'border-white/40'}`}>
+                            <div className={`relative z-10 shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px] rounded-full overflow-hidden border ${isCaNhanActive ? 'border-[#D497FF]' : 'border-white/40'}`}>
                                 <Image src={getUserAvatarUrl(user)} alt="Avatar" width={23} height={23} className="w-full h-full object-cover" />
                             </div>
                         ) : (
-                            <svg className="shrink-0 transition-transform duration-200 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isCaNhanActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                            <svg className="relative z-10 shrink-0 w-[21px] h-[21px] md:w-[23px] md:h-[23px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={isCaNhanActive ? "2.3" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                         )}
-                        <span className={`text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isCaNhanActive ? "opacity-100" : "opacity-60"
+                        <span className={`relative z-10 text-[9px] md:text-[10px] leading-none font-semibold tracking-tight whitespace-nowrap transition-opacity duration-150 ease-out ${isCaNhanActive ? "opacity-100" : "opacity-60"
                             }`}>
                             Cá nhân
                         </span>
