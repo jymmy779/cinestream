@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { fetchWithRedis } from "@/app/lib/fetch-with-redis";
+import { fetchWithRedis, redis } from "@/app/lib/fetch-with-redis";
 import { createClient } from "@/app/utils/supabase/server";
 import { MovieDetailResponse } from "@/app/types/movie";
 
@@ -8,6 +8,13 @@ import { INTERNAL_API_URL } from "@/app/utils/apiConfig";
 import { extractMaxEpisodeNumber, sortEpisodeServers } from "@/app/utils/serverPriority";
 
 const detailMemoryCache = new Map<string, { data: MovieDetailResponse | null; expires: number }>();
+
+function cacheMovieDetail(key: string, data: MovieDetailResponse) {
+    detailMemoryCache.set(key, { data, expires: Date.now() + 300_000 });
+    if (redis?.status === "ready") {
+        redis.setex(`movie-detail:${key}`, 300, JSON.stringify(data)).catch(() => {});
+    }
+}
 
 export const getMovieDetail = cache(async (slug: string, isPreview: boolean = false): Promise<MovieDetailResponse | null> => {
     try {
@@ -19,6 +26,19 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
             if (cached && Date.now() < cached.expires) {
                 return cached.data;
             }
+
+            if (redis?.status === "ready") {
+                try {
+                    const sharedCached = await redis.get(`movie-detail:${cacheKey}`);
+                    if (sharedCached) {
+                        const data = JSON.parse(sharedCached) as MovieDetailResponse;
+                        detailMemoryCache.set(cacheKey, { data, expires: Date.now() + 300_000 });
+                        return data;
+                    }
+                } catch {
+                    // Redis is optional; continue with the source APIs.
+                }
+            }
         }
 
         const supabase = await createClient();
@@ -29,12 +49,18 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
                 .from('exclusive_movies')
                 .select(`*, exclusive_episodes (*)`)
                 .eq('slug', cleanSlug)
+                .abortSignal(AbortSignal.timeout(2500))
                 .single(),
-            fetchWithRedis(`${INTERNAL_API_URL}/phim/${cleanSlug}`),
+            fetchWithRedis(`${INTERNAL_API_URL}/phim/${cleanSlug}`, {
+                timeoutMs: 2500,
+                retries: 0,
+                fallbackTimeoutMs: 3000,
+            }),
             supabase
                 .from('movie_views')
                 .select('view_count')
                 .eq('movie_slug', cleanSlug)
+                .abortSignal(AbortSignal.timeout(2500))
                 .maybeSingle()
         ]);
 
@@ -187,11 +213,11 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
                 const tmdbType = exclusiveMovie.type === "single" ? "movie" : "tv";
                 const apiKey = "fb7bb23f03b6994dafc674c074d01761";
                 const [resVi, resEn] = await Promise.all([
-                    fetch(`https://api.themoviedb.org/3/${tmdbType}/${exclusiveMovie.tmdb_id}?api_key=${apiKey}&language=vi-VN&append_to_response=credits,videos`),
-                    fetch(`https://api.themoviedb.org/3/${tmdbType}/${exclusiveMovie.tmdb_id}?api_key=${apiKey}&language=en-US&append_to_response=videos`)
+                    fetch(`https://api.themoviedb.org/3/${tmdbType}/${exclusiveMovie.tmdb_id}?api_key=${apiKey}&language=vi-VN&append_to_response=credits,videos`, { signal: AbortSignal.timeout(800) }).catch(() => null),
+                    fetch(`https://api.themoviedb.org/3/${tmdbType}/${exclusiveMovie.tmdb_id}?api_key=${apiKey}&language=en-US&append_to_response=videos`, { signal: AbortSignal.timeout(800) }).catch(() => null)
                 ]);
                 
-                if (resVi.ok && resEn.ok) {
+                if (resVi?.ok && resEn?.ok) {
                     const data = await resVi.json();
                     const dataEn = await resEn.json();
                     
@@ -239,7 +265,7 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
                         episodes: finalEpisodes
                     };
                     if (!isPreview) {
-                        detailMemoryCache.set(cacheKey, { data: result as any, expires: Date.now() + 300_000 });
+                        cacheMovieDetail(cacheKey, result as any);
                     }
                     return result;
                 }
@@ -281,7 +307,7 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
                 episodes: finalEpisodes
             };
             if (!isPreview) {
-                detailMemoryCache.set(cacheKey, { data: result as any, expires: Date.now() + 300_000 });
+                cacheMovieDetail(cacheKey, result as any);
             }
             return result;
         }
@@ -329,7 +355,7 @@ export const getMovieDetail = cache(async (slug: string, isPreview: boolean = fa
                     }
                 }
                 if (!isPreview) {
-                    detailMemoryCache.set(cacheKey, { data: phimApiData, expires: Date.now() + 300_000 });
+                    cacheMovieDetail(cacheKey, phimApiData);
                 }
                 return phimApiData;
             }

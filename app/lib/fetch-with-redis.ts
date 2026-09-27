@@ -100,11 +100,14 @@ globalForRedis.redis = redis;
 /**
  * fetchWithRedis: Ultra-fast L1 RAM Cache + SWR Strategy
  */
-export const fetchWithRedis = cache(async (url: string, options?: RequestInit & { revalidate?: number | false }): Promise<any> => {
+export const fetchWithRedis = cache(async (url: string, options?: RequestInit & { revalidate?: number | false; timeoutMs?: number; retries?: number; fallbackTimeoutMs?: number }): Promise<any> => {
   const rawRevalidate = options?.revalidate ?? (options as any)?.next?.revalidate ?? DEFAULT_REVALIDATE_SEC;
   const revalidate = typeof rawRevalidate === 'number' ? rawRevalidate : DEFAULT_REVALIDATE_SEC;
   const cacheKey = `swr:${url}`;
   const emergencyKey = `emg:${url}`;
+  const timeoutMs = options?.timeoutMs ?? 4000;
+  const maxRetries = options?.retries ?? 1;
+  const fallbackTimeoutMs = options?.fallbackTimeoutMs ?? 5000;
 
   // 1. FAST PATH: Check L1 RAM Cache (0.001ms)
   const l1Data = getL1Cache(cacheKey);
@@ -127,7 +130,7 @@ export const fetchWithRedis = cache(async (url: string, options?: RequestInit & 
       const fetchUrl = `${normalizedUrl}${separator}${cacheBuster}`;
 
       const response = await axios.get(fetchUrl, {
-        timeout: 4000, // Fast 4s timeout for local/backend calls
+        timeout: timeoutMs,
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'application/json',
@@ -150,7 +153,7 @@ export const fetchWithRedis = cache(async (url: string, options?: RequestInit & 
         throw new Error(`API returned status ${response.status}`);
       }
     } catch (error: any) {
-      if (retryCount < 1) {
+      if (retryCount < maxRetries) {
         return _fetchFreshData(retryCount + 1);
       }
 
@@ -187,7 +190,7 @@ export const fetchWithRedis = cache(async (url: string, options?: RequestInit & 
           fallbackUrl = fallbackUrl.replace('https://phimapi.com/v1/api/phim/', 'https://phimapi.com/phim/');
 
           const fbResponse = await axios.get(fallbackUrl, {
-            timeout: 5000,
+            timeout: fallbackTimeoutMs,
             headers: { 'User-Agent': 'Mozilla/5.0' }
           });
           if (fbResponse.status === 200 && fbResponse.data) {
