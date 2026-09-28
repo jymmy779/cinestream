@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+const REFRESH_THRESHOLD = 5 * 60 * 1000;
+
 /**
  * WakeUpMonitor: Theo dõi khi người dùng quay lại tab sau một thời gian dài.
  * Nếu vắng mặt > 15 phút, tự động làm mới dữ liệu để tránh trang bị trống hoặc treo.
@@ -11,10 +13,10 @@ export default function WakeUpMonitor() {
   const router = useRouter();
   const pathname = usePathname();
   const isMovieRoute = pathname.startsWith("/phim/");
-  const lastActiveRef = useRef<number>(Date.now());
-  const REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 phút
+  const lastActiveRef = useRef<number>(0);
 
   useEffect(() => {
+    lastActiveRef.current = Date.now();
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
@@ -38,18 +40,8 @@ export default function WakeUpMonitor() {
     // Lắng nghe sự kiện thay đổi trạng thái hiển thị của trang
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    // Lắng nghe sự kiện quay lại từ Back/Forward Cache (Mobile hay dùng cái này)
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted && !isMovieRoute) {
-        router.refresh();
-      }
-    };
-
-    window.addEventListener("pageshow", handlePageShow);
-
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pageshow", handlePageShow);
     };
   }, [router, isMovieRoute]);
 

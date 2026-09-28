@@ -78,9 +78,14 @@ export default function CatalogLayout({
                         {/* Main Content Area */}
                         <div className="flex-grow w-full xl:min-w-0">
                             <div className="relative">
+                                {isPageLoading && !isLoading && (
+                                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0F1115]/45 backdrop-blur-[1px]">
+                                        <LoadingSpinner size="lg" color="default" />
+                                    </div>
+                                )}
                                 <div>
                                     <div className="w-full">
-                                        {isLoading || isPageLoading ? (
+                                        {isLoading ? (
                                             loadingType === 'spinner' ? (
                                                 <div className="py-24 flex items-center justify-center min-h-[350px]">
                                                     <LoadingSpinner size="lg" color="default" />

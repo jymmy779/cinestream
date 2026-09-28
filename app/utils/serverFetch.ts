@@ -66,11 +66,14 @@ export async function fetchCatalogData(
 
         let items: Movie[] = [];
         let totalItems = 0;
+        let apiTotalPages = 0;
         let pageTitle = "";
 
         if (moviesData?.status === "success" || moviesData?.status === true) {
             items = moviesData.data?.items || moviesData.items || [];
-            totalItems = moviesData.data?.params?.pagination?.totalItems || moviesData.pagination?.totalItems || 0;
+            const pagination = moviesData.data?.params?.pagination || moviesData.pagination;
+            totalItems = pagination?.totalItems || 0;
+            apiTotalPages = pagination?.totalPages || 0;
             pageTitle = moviesData.data?.titlePage || "";
         }
 
@@ -88,7 +91,7 @@ export async function fetchCatalogData(
 
         return {
             movies: items,
-            totalPages: Math.ceil(totalItems / limit) || 1,
+            totalPages: apiTotalPages || Math.ceil(totalItems / limit) || 1,
             pageTitle,
             categories: parsedCategories,
             countries: parseList(countriesData),

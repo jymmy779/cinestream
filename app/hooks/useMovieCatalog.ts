@@ -180,14 +180,13 @@ export function useMovieCatalog({ baseApiUrl, itemsPerPage = 32, slug, initialDa
         const cacheKey = `catalog_${baseApiUrl}_${currentPage}_${JSON.stringify(activeFilters)}_${slug || ''}`;
         
         // Save initial server data to cache on first load if valid
-        if (isFirstMount.current && hasValidInitialData && initialData) {
+        const shouldRevalidateInitialData = isFirstMount.current && hasValidInitialData && !!initialData;
+        if (shouldRevalidateInitialData && initialData) {
             globalCache.set(cacheKey, {
                 movies: initialData.movies,
                 totalPages: initialData.totalPages,
                 pageTitle: initialData.pageTitle
             });
-            isFirstMount.current = false;
-            return;
         }
         isFirstMount.current = false;
 
@@ -196,7 +195,7 @@ export function useMovieCatalog({ baseApiUrl, itemsPerPage = 32, slug, initialDa
         
         const fetchMovies = async () => {
             // Check cache first for SWR
-            const cached = globalCache.getRaw<any>(cacheKey);
+            const cached = shouldRevalidateInitialData ? null : globalCache.getRaw<any>(cacheKey);
             
             if (cached) {
                 setMovies(cached.movies);
@@ -305,11 +304,14 @@ export function useMovieCatalog({ baseApiUrl, itemsPerPage = 32, slug, initialDa
 
                 let items: Movie[] = [];
                 let totalItems = 0;
+                let apiTotalPages = 0;
                 let title = "";
 
                 if (res.data?.status === "success" || res.data?.status === true) {
                     items = res.data.data?.items || res.data.items || [];
-                    totalItems = res.data.data?.params?.pagination?.totalItems || res.data.pagination?.totalItems || 0;
+                    const pagination = res.data.data?.params?.pagination || res.data.pagination;
+                    totalItems = pagination?.totalItems || 0;
+                    apiTotalPages = pagination?.totalPages || 0;
                     title = res.data.data?.titlePage || res.data.data?.seoOnpage?.title_page || res.data.data?.seoOnpage?.title || res.data.titlePage || "";
                 }
 
@@ -373,7 +375,7 @@ export function useMovieCatalog({ baseApiUrl, itemsPerPage = 32, slug, initialDa
                 }
 
                 if (isMounted) {
-                    const calculatedTotalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+                    const calculatedTotalPages = apiTotalPages || Math.ceil(totalItems / itemsPerPage) || 1;
                     
                     setMovies(items);
                     setTotalPages(calculatedTotalPages);
