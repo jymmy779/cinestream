@@ -207,14 +207,17 @@ export function useMovieCatalog({ baseApiUrl, itemsPerPage = 32, slug, initialDa
 
             // Nếu không có cache:
             // - Nếu là lần đầu tiên (chưa có phim): Hiện Skeleton (isLoading)
-            // - Nếu đã có phim (chuyển trang/lọc): Hiện Overlay (isPageLoading) và GIỮ LẠI PHIM CŨ
-            if (movies.length === 0) {
+            // - Nếu đã có phim (chuyển trang/lọc): Hiện skeleton qua isPageLoading
+            if (shouldRevalidateInitialData) {
+                setIsLoading(false);
+                setIsPageLoading(false);
+            } else if (movies.length === 0) {
                 setIsLoading(true);
                 setIsPageLoading(false);
             } else {
                 setIsLoading(false);
                 setIsPageLoading(true);
-                // KHÔNG setMovies([]) ở đây để giữ lại trang cũ làm nền cho Overlay
+                // Không xóa movies để cache vẫn có dữ liệu đồng bộ khi quay lại bằng nút Back
             }
 
             try {
